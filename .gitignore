@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea/
+.idea/.gitignore
+.idea/inspectionProfiles/
+.idea/misc.xml
+.idea/modules.xml
+.idea/tianchi-ml-base.iml
+.idea/vcs.xml
+TianChi/baseLine/repeatPurchase/all_data_test.csv
+TianChi/baseLine/repeatPurchase/all_data_test_1000.csv
+TianChi/baseLine/repeatPurchase/product2vec.model
