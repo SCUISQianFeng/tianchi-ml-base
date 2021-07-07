@@ -44,7 +44,7 @@ def stacking_clf(clf, train_x, train_y, test_x, clf_name, kf, label_split=None):
         elif clf_name in ['xgb']:
             train_matrix = clf.DMatrix(tr_x, label=tr_y, missing=-1)
             test_matrix = clf.DMatrix(te_x, label=te_y, missing=-1)
-            z = clf.DMatrix(test_x, label=te_y, missing=-1)
+            z = clf.DMatrix(test_x, label=None, missing=-1)
             params = {
                 'booster': 'gbtree',
                 'objective': 'multi:softprob',
@@ -239,7 +239,7 @@ def knn_clf(x_train, y_train, x_valid, kf, label_split=None):
                                        'knn',
                                        kf,
                                        label_split=label_split)
-    return knn_train, knn_test, 'gnb'
+    return knn_train, knn_test, 'knn'
 
 
 def get_matrix(data):
@@ -265,8 +265,9 @@ if __name__ == "__main__":
     x_valid = x_train
     kf = KFold(n_splits=folds, shuffle=True, random_state=0)
     clf_list = [lgb_clf, xgb_clf]
+    # clf_list = [xgb_clf]
     clf_list_col = ['xgb_clf', 'lgb_clf']
-    clf_list = clf_list
+    # clf_list_col = ['xgb_clf']
     column_list = []
     train_data_list = []
     test_data_list = []
