@@ -30,3 +30,4 @@ const = _const()
 
 const.MY_CONSTANT = 1
 const.MY_SECOND_CONSTANT = 2
+const.STR_SEPARATOR = ':'
