@@ -251,46 +251,49 @@ def get_matrix(data):
 
 
 if __name__ == "__main__":
-    all_data_test = pd.read_csv('all_data_test.csv', sep='\t')
-    features_columns = [c for c in all_data_test.columns if c not in ['label', 'prob', 'seller_path', 'cat_path',
-                                                                      'brand_path', 'action_type_path', 'item_path',
-                                                                      'time_stamp_path']]
+    import tensorflow as tf
 
-    x_train = all_data_test[~all_data_test['label'].isna()][features_columns].values
-    y_train = all_data_test[~all_data_test['label'].isna()]['label'].values
-    x_valid = all_data_test[all_data_test['label'].isna()][features_columns].values
-
-    x_train = np.float_(get_matrix(np.float_(x_train)))
-    y_train = np.int_(y_train)
-    x_valid = x_train
-    kf = KFold(n_splits=folds, shuffle=True, random_state=0)
-    clf_list = [lgb_clf, xgb_clf]
-    # clf_list = [xgb_clf]
-    clf_list_col = ['xgb_clf', 'lgb_clf']
-    # clf_list_col = ['xgb_clf']
-    column_list = []
-    train_data_list = []
-    test_data_list = []
-    for clf in clf_list:
-        train_data, test_data, clf_name = clf(x_train, y_train, x_valid, kf, label_split=None)
-        train_data_list.append(train_data)
-        test_data_list.append(test_data)
-
-    train_stacking = np.concatenate(train_data_list, axis=1)
-    test_stacking = np.concatenate(test_data_list, axis=1)
-
-    # 原始特征与Stacking特征合并
-    train = pd.DataFrame(np.concatenate([x_train, train_stacking], axis=1))
-    test = np.concatenate([x_valid, test_stacking], axis=1)
-
-    df_train_all = pd.DataFrame(train)
-    df_train_all.columns = features_columns + clf_list_col
-    df_test_all = pd.DataFrame(test)
-    df_test_all.columns = features_columns + clf_list_col
-
-    df_train_all['user_id'] = all_data_test[~all_data_test['label'].isna()]['user_id']
-    df_test_all['user_id'] = all_data_test[all_data_test['label'].isna()]['user_id']
-    df_train_all['label'] = all_data_test[~all_data_test['label'].isna()]['label']
-
-    df_train_all.to_csv('train_all.csv', header=True, index=False)
-    df_test_all.to_csv('test_all.csv', header=True, index=False)
+    print(tf.test.is_gpu_available())
+    # all_data_test = pd.read_csv('all_data_test.csv', sep='\t')
+    # features_columns = [c for c in all_data_test.columns if c not in ['label', 'prob', 'seller_path', 'cat_path',
+    #                                                                   'brand_path', 'action_type_path', 'item_path',
+    #                                                                   'time_stamp_path']]
+    #
+    # x_train = all_data_test[~all_data_test['label'].isna()][features_columns].values
+    # y_train = all_data_test[~all_data_test['label'].isna()]['label'].values
+    # x_valid = all_data_test[all_data_test['label'].isna()][features_columns].values
+    #
+    # x_train = np.float_(get_matrix(np.float_(x_train)))
+    # y_train = np.int_(y_train)
+    # x_valid = x_train
+    # kf = KFold(n_splits=folds, shuffle=True, random_state=0)
+    # clf_list = [lgb_clf, xgb_clf]
+    # # clf_list = [xgb_clf]
+    # clf_list_col = ['xgb_clf', 'lgb_clf']
+    # # clf_list_col = ['xgb_clf']
+    # column_list = []
+    # train_data_list = []
+    # test_data_list = []
+    # for clf in clf_list:
+    #     train_data, test_data, clf_name = clf(x_train, y_train, x_valid, kf, label_split=None)
+    #     train_data_list.append(train_data)
+    #     test_data_list.append(test_data)
+    #
+    # train_stacking = np.concatenate(train_data_list, axis=1)
+    # test_stacking = np.concatenate(test_data_list, axis=1)
+    #
+    # # 原始特征与Stacking特征合并
+    # train = pd.DataFrame(np.concatenate([x_train, train_stacking], axis=1))
+    # test = np.concatenate([x_valid, test_stacking], axis=1)
+    #
+    # df_train_all = pd.DataFrame(train)
+    # df_train_all.columns = features_columns + clf_list_col
+    # df_test_all = pd.DataFrame(test)
+    # df_test_all.columns = features_columns + clf_list_col
+    #
+    # df_train_all['user_id'] = all_data_test[~all_data_test['label'].isna()]['user_id']
+    # df_test_all['user_id'] = all_data_test[all_data_test['label'].isna()]['user_id']
+    # df_train_all['label'] = all_data_test[~all_data_test['label'].isna()]['label']
+    #
+    # df_train_all.to_csv('train_all.csv', header=True, index=False)
+    # df_test_all.to_csv('test_all.csv', header=True, index=False)
