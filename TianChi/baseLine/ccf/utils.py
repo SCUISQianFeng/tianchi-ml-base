@@ -107,8 +107,8 @@ def get_day_gap(s: str) -> int:
     if s[1] == 'null':
         return -1
     else:
-        return (date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) -
-                date(int(s[1][0:4]), int(s[1][4:6]), int(s[1][6:8]))).days
+        return (date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) - date(int(s[1][0:4]), int(s[1][4:6]),
+                                                                            int(s[1][6:8]))).days
 
 
 def get_label(s: str) -> int:
@@ -148,7 +148,7 @@ def add_label(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def add_agg_feature_names(df: pd.DataFrame, df_group: pd.DataFrame, group_cols: list[str], value_col: list[str],
+def add_agg_feature_names(df: pd.DataFrame, df_group: pd.DataFrame, group_cols, value_col: list[str],
                           agg_ops, col_names: list[str]) -> pd.DataFrame:
     """
     统计特征处理函数
@@ -167,8 +167,8 @@ def add_agg_feature_names(df: pd.DataFrame, df_group: pd.DataFrame, group_cols: 
     return df
 
 
-def add_agg_feature(df: pd.DataFrame, df_group: pd.DataFrame, group_cols: list[str], value_col: list[str],
-                    agg_ops: list[str], keyword) -> pd.DataFrame:
+def add_agg_feature(df: pd.DataFrame, df_group: pd.DataFrame, group_cols, value_col,
+                    agg_ops, keyword) -> pd.DataFrame:
     """
     统计特征处理函数 名称按照keyword + '_' + value_col + '_' + op
     :param df:
@@ -186,7 +186,7 @@ def add_agg_feature(df: pd.DataFrame, df_group: pd.DataFrame, group_cols: list[s
     return df
 
 
-def add_count_new_feature(df: pd.DataFrame, df_group: pd.DataFrame, group_cols: list[str],
+def add_count_new_feature(df: pd.DataFrame, df_group: pd.DataFrame, group_cols,
                           new_feature_name: str) -> pd.DataFrame:
     """
     因为count特征很多， 专门提取count特征的函数
@@ -255,5 +255,115 @@ def get_user_feature(feature):
     t1.drop_duplicates(inplace=True)
     t1 = t1['user_id']
     user_feature = add_count_new_feature(t, t1, 'user_id', 'count_merchant')
-    # 在每个用户线下使用优惠券产生的交易中， 统计和商户距离的最大值
+    # 在每个用户线下使用优惠券产生的交易中， 统计和商户距离的最大值、最小值、平均值、中位值
+    t2 = user[(user.date != 'null') & (user.coupon_id != 'null') & (user.distance != 'null')][['user_id', 'distance']]
+    t2.distance = t2.distance.astype('int')
+    user_feature = add_agg_feature(user_feature, t2, ['user_id'], 'distance', ['min', 'max', 'mean', 'median'], 'user')
+    # 每个用户使用优惠券的次数
+    t7 = user[(user.date != 'null') & (user.coupon_id != 'null')][['user_id']]
+    user_feature = add_count_new_feature(user_feature, t7, 'user_id', 'buy_use_coupon')
+    # 每个用户消费的总次数
+    t8 = user[user.date != 'null'][['user_id']]
+    user_feature = add_count_new_feature(user_feature, t8, 'user_id', 'but_total')
+    # 每个用户收到优惠券的总数
+    t9 = user[user.coupon_id != 'null'][['user_id']]
+    user_feature = add_count_new_feature(user_feature, t9, 'user_id', 'coupon_received')
+    # 用户从收到优惠券到用券消费的时间间隔，统计其最大值、最小值、平均值、中位值
+    t10 = user[(user.date_received != 'null') & (user.date != 'null')][['user_id', 'date_received', 'date']]
+    t10 = get_day_gap(t10)
+    t10 = t10[['user_id', 'day_gap']]
+    user_feature = add_agg_feature(user_feature, t10, ['user_id'], 'day_gap', ['min', 'max', 'mean', 'median'], 'user')
+    # 将数据中的NaN用0替换
+    user_feature.count_merchant = user_feature.count_merchant.replace(np.nan, 0)
+    user_feature.buy_user_coupon = user_feature.buy_user_coupon.replace(np.nan, 0)
+    # 统计用户用券消费在总消费中的占比
+    user_feature['buy_use_coupon_rate'] - user_feature.buy_user_coupon.astype('float') / user_feature.buy_total.astype(
+        'float')
+    # 统计用户收到消费券的使用率
+    user_feature['buy_user_coupon_rate'] = user_feature.buy_user_coupon.astype(
+        'float') / user_feature.coupon_received.astype('float')
+    # 将数据中的NaN用0来替换
+    user_feature.but_total = user_feature.but_total.replace(np.nan, 0)
+    user_feature.coupon_received = user_feature.coupon_received.replace(np.nan, 0)
+    return user_feature
 
+
+def get_user_merchant_feature(feature):
+    """
+    用户和商户关系特征群
+    :param feature:
+    :return:
+    """
+    t = feature[['user_id', 'merchant_id']].copy()
+    # 用户和商户关系的去重
+    t.drop_duplicates(inplace=True)
+
+    # 一个用户在一个商户交易的次数
+    t0 = feature[['user_id', 'merchant_id', 'date']].copy()
+    t0 = t0[t0.coupon_id != 'null'][['user_id', 'merchant_id']]
+    user_merchant = add_count_new_feature(t, t0, ['user_id', 'merchant_id'], 'user_merchant_but_total')
+    # 一个用户在一个商家一共收到的优惠券数量
+    t1 = feature[['user_id', 'merchant_id', 'coupon_id']]
+    t1 = t1[t1.coupon_id != 'null'][['user_id', 'merchant_id']]
+    user_merchant = add_count_new_feature(user_merchant, t1, ['user_id', 'merchant_id'], 'user_merchant_received')
+    # 一个用户在一个商家使用优惠券消费的次数
+    t2 = feature[['user_id', 'merchant_id', 'date', 'date_received']]
+    t2 = t2[(t2.date != 'null') & (t2.date_received != 'null')][['user_id', 'merchant_id']]
+    # group_cols -> 利用group_cols作为分组统计的基准，其他字段统计次数
+    user_merchant = add_count_new_feature(user_merchant, t2, ['user_id', 'merchant_id'], 'user_merchant_buy_use_coupon')
+    # 一个用户在一个商家的到店次数
+    t3 = feature[['user_id', 'merchant_id']]
+    user_merchant = add_count_new_feature(user_merchant, t3, ['user_id', 'merchant_id'], 'user_merchant_any')
+    # 一个用户在一个商家没有使用优惠券的次数
+    t4 = feature[['user_id', 'merchant_id', 'date', 'date_received']]
+    t4 = t4[(t4.date != 'null') & (t4.coupon_id != 'null')][['user_id', 'merchant_id']]
+    user_merchant = add_count_new_feature(user_merchant, t4, ['user_id', 'merchant_id'], 'user_merchant_buy_common')
+    # 将数据中的NaN用0来替换
+    user_merchant.user_merchant_buy_use_coupon = user_merchant.user_merchant_buy_use_coupon.replace(np.nan, 0)
+    user_merchant.user_merchant_buy_common = user_merchant.user_merchant_buy_common.replace(np.nan, 0)
+    # 一个用户对一个商家的总消费次数中，有优惠券的消费次数占比
+    user_merchant['user_merchant_coupon_buy_rate'] = user_merchant.user_merchant_buy_use_coupon.astype(
+        'float') / user_merchant.user_merchant_buy_common.astype('float')
+    # 一个用户到店后消费的可能性统计
+    user_merchant['user_merchant_comon_buy_rate'] = user_merchant.user_merchant_buy_common.astype(
+        'float') / user_merchant.user_merchant_buy_any.astype('float')
+    return user_merchant
+
+
+def get_leakage_feature(dataset):
+    """
+    Leakage特征群
+    :param feature:
+    :return:
+    """
+    t = dataset[['user_id']].copy()
+    t['this_month_user_received_all_coupon_count'] = 1
+    t = t.groupby('user_id').agg('sum').reset_index()
+    t1 = dataset[['user_id', 'coupon_id']].copy()
+    t1['this_month_user_received_same_coupon_count'] = 1
+    t1 = t1.groupby(['user_id', 'coupon_id']).agg('sum').reset_index()
+    t2 = dataset[['user_id', 'coupon_id', 'date_received']].copy()
+    t2.date_received = t2.date_received.astype('str')
+    # 如果出现相同的用户接收相同的优惠券，则在接收时间上用“：”连接上第n次优惠券的时间
+    # user_id coupon_id date_received
+    # 1       1         2011 2012 2013。。。这样的形式
+    t2 = t2.groupby(['user_id', 'coupon_id'])['date_received'].agg(lambda x: ":".join(x)).reset_index()
+    # 将接收时间的一组按“：”分开，这样就可以计算所接收优惠券的数量
+    # apply是合并
+    t2['received_number'] = t2.date.apply(lambda s: len(s.split(':')))
+    t2 = t2[t2.received_number > 1]
+    # 最大接收的日期
+    t2['max_date_received'] = t2.date_received.apply(lambda s: max([int(d) for d in s.split(':')]))
+    # 最小接收的日期
+    t2['min_date_received'] = t2.date_received.apply(lambda s: min([int(d) for d in s.split(':')]))
+    t2 = t2[['user_id', 'coupon_id', 'max_date_received', 'min_date_received']]
+
+    t3 = dataset[['user_id', 'coupon_id', 'date_received']]
+    # 将两个表融合只保留左表数据，相当于保留了最近接收时间和最远接收时间
+    t3 = pd.merge(t3, t2, on=['user_id', 'coupon_id'], how='left')
+    # 这个优惠券最近接收时间
+    t3['this+_month_user_received_same_coupon_lastone'] = t3.max_date_received - t2.date_received.astype(int)
+    # 这个优惠券最远接收时间
+    t3['this_month_user_received_same_coupon_firstone'] = t3.date_received.astype(int) - t3.min_date_received
+    t3.this_month_user_received_same_couon_lastone = t3.this_month_user_received_same_couon_lastone.apply(is_firstlastone)
+    t3.this_month_user_received_same_couon_firstone = t3.this_month_user_received_same_couon_firstone.apply(is_firstlastone)
