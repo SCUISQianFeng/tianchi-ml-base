@@ -437,7 +437,56 @@ def normal_feature_generate(feature_function):
     dftest.drop(['merchant_id'], axis=1, inplace=True)
 
     print('输出特征')
-    dftrain.to_csv(feature)
+    dftrain.to_csv(feature + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
+    dftest.to_csv(feature + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
+
+
+
+def slide_feature_generate(feature_function):
+    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
+    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
+    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
+    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
+    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
+    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
+    # 交叉训练集一：收到券的日期大于4月14日且小于5月14日
+    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
+    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
+    feature2 = off_train[(off_train.date >= '20160101') &
+                         (off_train.date <= '20160413') |
+                         ((off_train.date_received >= '20160101') &
+                         (off_train.date_received <= '20160413') &
+                         (off_train.date != 'null'))]
+    # 交叉训练集二：收到券的日期大于5月15日且小于6月15日
+    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
+    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
+    feature2 = off_train[(off_train.date >= '20160101') &
+                         (off_train.date <= '20160413') |
+                         ((off_train.date_received >= '20160101') &
+                          (off_train.date_received <= '20160413') &
+                          (off_train.date != 'null'))]
+    # 测试集
+    dataset3 = off_test
+    # 测试集特征：线下数据中领券和用券的日期大于3月15日且小于6月30日
+    feature3 = off_train[((off_train.date >= '20160315') &
+                          (off_train.date <= '20160630'))]
+
+
+
+    # off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
+    #                       & (off_train.date_received >= '20160101')]
+    # dftrain = feature_function(off_train, True)
+    # dftest = feature_function(off_test, True)
+    #
+    # dftrain.drop(['date'], axis=1, inplace=True)
+    # dftrain.drop(['merchant_id'], axis=1, inplace=True)
+    # dftest.drop(['merchant_id'], axis=1, inplace=True)
+    #
+    # print('输出特征')
+    # dftrain.to_csv(feature + 'train_' + feature_function.__namne__ + ".csv", index=False, sep=',')
+    # dftest.to_csv(feature + 'test_' + feature_function.__namne__ + ".csv", index=False, sep=',')
+
+
 
 
 
