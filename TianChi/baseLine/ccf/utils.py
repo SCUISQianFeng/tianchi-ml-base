@@ -9,6 +9,9 @@ import datetime as dt
 from datetime import date
 import pandas as pd
 import numpy as np
+import sys
+import os
+sys.path.append(os.pardir)
 
 
 def get_discount_rate(s: typing.AnyStr) -> float:
@@ -18,7 +21,7 @@ def get_discount_rate(s: typing.AnyStr) -> float:
     :return:
     """
     s = str(s)
-    if s == 'null':
+    if s == 'nan':
         return -1
     s = s.split(const.STR_SEPARATOR)
     if len(s) == 1:
@@ -71,13 +74,14 @@ def get_reduction_value(s: typing.AnyStr) -> int:
         return int(s[1])
 
 
-def get_month(s: str) -> int:
+def get_month(s) -> int:
     """
     获取月份
     :param s:
     :return:
     """
-    if s[0] == 'null':
+    s = str(s)
+    if s == 'nan':
         return -1
     else:
         return int(s[4:6])
@@ -89,7 +93,8 @@ def get_day(s: str) -> int:
     :param s:
     :return:
     """
-    if s[0] == 'null':
+    s = str(s)
+    if s == 'nan':
         return -1
     else:
         return int(s[6:8])
@@ -102,9 +107,9 @@ def get_day_gap(s: str) -> int:
     :return:
     """
     s = s.split(const.STR_SEPARATOR)
-    if s[0] == 'null':
+    if s[0] == 'nan':
         return -1
-    if s[1] == 'null':
+    if s[1] == 'nan':
         return -1
     else:
         return (date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) - date(int(s[1][0:4]), int(s[1][4:6]),
@@ -118,9 +123,9 @@ def get_label(s: str) -> int:
     :return:
     """
     s = s.split(const.STR_SEPARATOR)
-    if s[0] == 'null':
+    if s[0] == 'nan':
         return 0
-    if s[1] == 'null':
+    if s[1] == 'nan':
         return -1
     elif ((date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) -
            date(int(s[1][0:4]), int(s[1][4:6]), int(s[1][6:8]))).days <= 15):
@@ -135,9 +140,12 @@ def add_feature(df: pd.DataFrame) -> pd.DataFrame:
     df['full_value'] = df['discount_rate'].apply(get_full_value)
     df['reduction_value'] = df['discount_rate'].apply(get_reduction_value)
     df['discount_rate'] = df['discount_rate'].apply(get_discount_rate)
-    df['distance'] = df['distance'].repalce('null', -1).astype(int)
+    df['distance'] = df['distance'].replace('null', -1).fillna(-1).astype(int)
     df['month_received'] = df['date_received'].apply(get_month)
-    df['month'] = df['date_received'].apply(get_month)
+    if 'date' in df.columns:
+        # 测试集没有date特征
+        df['month'] = df['date'].apply(get_month)
+
     return df
 
 
@@ -367,3 +375,70 @@ def get_leakage_feature(dataset):
     t3['this_month_user_received_same_coupon_firstone'] = t3.date_received.astype(int) - t3.min_date_received
     t3.this_month_user_received_same_couon_lastone = t3.this_month_user_received_same_couon_lastone.apply(is_firstlastone)
     t3.this_month_user_received_same_couon_firstone = t3.this_month_user_received_same_couon_firstone.apply(is_firstlastone)
+
+
+def f1(dataset, if_train):
+    result = add_discount(dataset)
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+def f2(dataset, feature, if_train):
+    result = add_discount(dataset)
+    merchant_feature = get_merchant_feature(feature)
+    result = result.merge(merchant_feature, on='merchant_id', how='left')
+    user_feature = get_user_feature(feature)
+    result = result.merge(user_feature, on='user_id', how='left')
+    user_merchant = get_user_merchant_feature(feature)
+    result = result.merge(user_merchant,
+                          on=['user_id', 'merchant_id'],
+                          how='left')
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+def f3(dataset, feature, if_train):
+    result = add_discount(dataset)
+    merchant_feature = get_merchant_feature(feature)
+    result = result.merge(merchant_feature, on='merchant_id', how='left')
+    user_feature = get_user_feature(feature)
+    result = result.merge(user_feature, on='user_id', how='left')
+    user_merchant = get_user_merchant_feature(feature)
+    result = result.merge(user_feature, on=['user_id', 'merchant_id'], how='left')
+    leakage_feature = get_leakage_feature(feature)
+    result = result.merge(leakage_feature, on=['user_id', 'merchant_id', 'date_received'], how='left')
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+###########
+# 特征输出
+############
+def normal_feature_generate(feature_function):
+    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
+    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
+    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
+    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
+    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
+    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
+    off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
+                          & (off_train.date_received >= '20160101')]
+    dftrain = feature_function(off_train, True)
+    dftest = feature_function(off_test, True)
+
+    dftrain.drop(['date'], axis=1, inplace=True)
+    dftrain.drop(['merchant_id'], axis=1, inplace=True)
+    dftest.drop(['merchant_id'], axis=1, inplace=True)
+
+    print('输出特征')
+    dftrain.to_csv(feature)
+
+
+
+
