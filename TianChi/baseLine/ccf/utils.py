@@ -11,7 +11,19 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import sklearn.metrics as metrics
+
 sys.path.append(os.pardir)
+
+####################### 全局参数 ############
+id_col_names = ['user_id', 'coupon_id', 'date_received']
+target_col_name = 'label'
+id_target_cols = ['user_id', 'coupon_id', 'date_received', 'label']
+datapath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/'
+featurepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/feature'
+resultpath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/result'
+tmppath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/tmp'
+scorepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/score'
 
 
 def get_discount_rate(s: typing.AnyStr) -> float:
@@ -373,121 +385,24 @@ def get_leakage_feature(dataset):
     t3['this+_month_user_received_same_coupon_lastone'] = t3.max_date_received - t2.date_received.astype(int)
     # 这个优惠券最远接收时间
     t3['this_month_user_received_same_coupon_firstone'] = t3.date_received.astype(int) - t3.min_date_received
-    t3.this_month_user_received_same_couon_lastone = t3.this_month_user_received_same_couon_lastone.apply(is_firstlastone)
-    t3.this_month_user_received_same_couon_firstone = t3.this_month_user_received_same_couon_firstone.apply(is_firstlastone)
+    t3.this_month_user_received_same_couon_lastone = t3.this_month_user_received_same_couon_lastone.apply(
+        is_firstlastone)
+    t3.this_month_user_received_same_couon_firstone = t3.this_month_user_received_same_couon_firstone.apply(
+        is_firstlastone)
 
 
-def f1(dataset, if_train):
-    result = add_discount(dataset)
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-def f2(dataset, feature, if_train):
-    result = add_discount(dataset)
-    merchant_feature = get_merchant_feature(feature)
-    result = result.merge(merchant_feature, on='merchant_id', how='left')
-    user_feature = get_user_feature(feature)
-    result = result.merge(user_feature, on='user_id', how='left')
-    user_merchant = get_user_merchant_feature(feature)
-    result = result.merge(user_merchant,
-                          on=['user_id', 'merchant_id'],
-                          how='left')
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-def f3(dataset, feature, if_train):
-    result = add_discount(dataset)
-    merchant_feature = get_merchant_feature(feature)
-    result = result.merge(merchant_feature, on='merchant_id', how='left')
-    user_feature = get_user_feature(feature)
-    result = result.merge(user_feature, on='user_id', how='left')
-    user_merchant = get_user_merchant_feature(feature)
-    result = result.merge(user_feature, on=['user_id', 'merchant_id'], how='left')
-    leakage_feature = get_leakage_feature(feature)
-    result = result.merge(leakage_feature, on=['user_id', 'merchant_id', 'date_received'], how='left')
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-###########
-# 特征输出
-############
-def normal_feature_generate(feature_function):
-    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
-    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
-    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
-    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
-    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
-    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
-    off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
-                          & (off_train.date_received >= '20160101')]
-    dftrain = feature_function(off_train, True)
-    dftest = feature_function(off_test, True)
-
-    dftrain.drop(['date'], axis=1, inplace=True)
-    dftrain.drop(['merchant_id'], axis=1, inplace=True)
-    dftest.drop(['merchant_id'], axis=1, inplace=True)
-
-    print('输出特征')
-    dftrain.to_csv(feature + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
-    dftest.to_csv(feature + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
-
-
-
-def slide_feature_generate(feature_function):
-    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
-    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
-    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
-    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
-    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
-    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
-    # 交叉训练集一：收到券的日期大于4月14日且小于5月14日
-    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
-    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
-    feature2 = off_train[(off_train.date >= '20160101') &
-                         (off_train.date <= '20160413') |
-                         ((off_train.date_received >= '20160101') &
-                         (off_train.date_received <= '20160413') &
-                         (off_train.date != 'null'))]
-    # 交叉训练集二：收到券的日期大于5月15日且小于6月15日
-    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
-    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
-    feature2 = off_train[(off_train.date >= '20160101') &
-                         (off_train.date <= '20160413') |
-                         ((off_train.date_received >= '20160101') &
-                          (off_train.date_received <= '20160413') &
-                          (off_train.date != 'null'))]
-    # 测试集
-    dataset3 = off_test
-    # 测试集特征：线下数据中领券和用券的日期大于3月15日且小于6月30日
-    feature3 = off_train[((off_train.date >= '20160315') &
-                          (off_train.date <= '20160630'))]
-
-
-
-    # off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
-    #                       & (off_train.date_received >= '20160101')]
-    # dftrain = feature_function(off_train, True)
-    # dftest = feature_function(off_test, True)
-    #
-    # dftrain.drop(['date'], axis=1, inplace=True)
-    # dftrain.drop(['merchant_id'], axis=1, inplace=True)
-    # dftest.drop(['merchant_id'], axis=1, inplace=True)
-    #
-    # print('输出特征')
-    # dftrain.to_csv(feature + 'train_' + feature_function.__namne__ + ".csv", index=False, sep=',')
-    # dftest.to_csv(feature + 'test_' + feature_function.__namne__ + ".csv", index=False, sep=',')
-
-
-
-
-
-
+def myauc(test):
+    """
+    coupon平均auc计算 按不同的优惠券分别进行统计AUC
+    :param test:
+    :return:
+    """
+    testgroup = test.groupby(['coupon_id'])
+    aucs = []
+    for i in testgroup:
+        coupon_df = i[1]
+        if len(coupon_df['label'].unique()) < 2:
+            continue
+        auc = metrics.roc_auc_score(coupon_df['label'], coupon_df['pred'])
+        aucs.append(auc)
+    return np.average(aucs)
