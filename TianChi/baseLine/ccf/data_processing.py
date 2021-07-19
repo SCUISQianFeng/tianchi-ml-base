@@ -13,6 +13,12 @@ import seaborn as sns
 from scipy import stats
 from utils import add_feature
 from utils import add_label
+from utils import read_data
+from utils import get_predictors_df
+from utils import get_target_df
+from utils import get_predictors_df
+from utils import normal_feature_generate
+from utils import slide_feature_generate
 
 sys.path.append(os.pardir)
 import warnings
@@ -28,177 +34,6 @@ featurepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/feature'
 resultpath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/result'
 tmppath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/tmp'
 scorepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/score'
-
-
-def f1(dataset, if_train):
-    result = add_discount(dataset)
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-def f2(dataset, feature, if_train):
-    result = add_discount(dataset)
-    merchant_feature = get_merchant_feature(feature)
-    result = result.merge(merchant_feature, on='merchant_id', how='left')
-    user_feature = get_user_feature(feature)
-    result = result.merge(user_feature, on='user_id', how='left')
-    user_merchant = get_user_merchant_feature(feature)
-    result = result.merge(user_merchant,
-                          on=['user_id', 'merchant_id'],
-                          how='left')
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-def f3(dataset, feature, if_train):
-    result = add_discount(dataset)
-    merchant_feature = get_merchant_feature(feature)
-    result = result.merge(merchant_feature, on='merchant_id', how='left')
-    user_feature = get_user_feature(feature)
-    result = result.merge(user_feature, on='user_id', how='left')
-    user_merchant = get_user_merchant_feature(feature)
-    result = result.merge(user_feature, on=['user_id', 'merchant_id'], how='left')
-    leakage_feature = get_leakage_feature(feature)
-    result = result.merge(leakage_feature, on=['user_id', 'merchant_id', 'date_received'], how='left')
-    result.drop_duplicates(inplace=True)
-    if if_train:
-        result = add_label(result)
-    return result
-
-
-###########
-# 特征输出
-############
-def normal_feature_generate(feature_function):
-    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
-    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
-    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
-    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
-    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
-    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
-    off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
-                          & (off_train.date_received >= '20160101')]
-    dftrain = feature_function(off_train, True)
-    dftest = feature_function(off_test, True)
-
-    dftrain.drop(['date'], axis=1, inplace=True)
-    dftrain.drop(['merchant_id'], axis=1, inplace=True)
-    dftest.drop(['merchant_id'], axis=1, inplace=True)
-
-    print('输出特征')
-    dftrain.to_csv(feature + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
-    dftest.to_csv(feature + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
-
-
-def slide_feature_generate(feature_function):
-    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
-    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
-    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
-    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
-    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
-    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
-    # 交叉训练集一：收到券的日期大于4月14日且小于5月14日
-    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
-    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
-    feature1 = off_train[(off_train.date >= '20160101') &
-                         (off_train.date <= '20160413') |
-                         ((off_train.date_received >= '20160101') &
-                          (off_train.date_received <= '20160413') &
-                          (off_train.date != 'null'))]
-    # 交叉训练集二：收到券的日期大于5月15日且小于6月15日
-    dataset2 = off_train[(off_train.date_received >= '201605015') & (off_train.date_revceived <= '20160615')]
-    # 交叉训练集二特征：线下数据领券和用券时间大于2月1日且小于5月14日
-    feature2 = off_train[(off_train.date >= '20160201') &
-                         (off_train.date <= '20160514') |
-                         ((off_train.date_received >= '20160201') &
-                          (off_train.date_received <= '20160514') &
-                          (off_train.date != 'null'))]
-    # 测试集
-    dataset3 = off_test
-    # 测试集特征：线下数据中领券和用券的日期大于3月15日且小于6月30日
-    feature3 = off_train[((off_train.date >= '20160315') &
-                          (off_train.date <= '20160630')) |
-                         ((off_train.date != 'null') & (off_train.date_revcived >= '20160315') &
-                          (off_train.date_received) <= '20160630')]
-    dftrain1 = feature_function(dataset1, feature1, True)
-    dftrain2 = feature_function(dataset2, feature1, True)
-    dftrain = pd.concat([dftrain1, dftrain2], axis=0)
-    dftest = feature_function(dataset3, feature3, False)
-    dftrain.drop(['date'], axis=1, inplace=True)
-    dftrain.drop(['merchant_id'], axis=1, inplace=True)
-    dftest.drop(['merchant_id'], axis=1, inplace=True)
-    print('输出特征')
-    dftrain.to_csv(feature + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
-    dftest.to_csv(feature + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
-
-
-#####################
-# 特征读取函数
-#####################
-def get_id_df(df):
-    """
-    返回ID列
-    :param df:
-    :return:
-    """
-    return df[id_col_names]
-
-
-def get_target_df(df):
-    """
-    返回target列
-    :param df:
-    :return:
-    """
-    return df[target_col_name]
-
-
-def get_predictors_df(df):
-    """
-    返回特征列
-    :param df:
-    :return:
-    """
-    predictors = [f for f in df.columns if f not in id_target_cols]
-    return predictors
-
-
-def read_featurefile_train(featurename):
-    """
-    按特征名读取训练集
-    :param featurename:
-    :return:
-    """
-    df = pd.read_csv(featurepath + 'train_' + featurename + '.csv', sep=',', encoding='utf-8')
-    df.fillna(0, inplace=True)
-    return df
-
-
-def read_featurefile_test(featurename):
-    """
-    按特征名读取测试集
-    :param featurename:
-    :return:
-    """
-    df = pd.read_csv(featurepath + 'test_' + featurename + '.csv', sep=',', encoding='utf-8')
-    df.fillna(0, inplace=True)
-    return df
-
-
-
-def read_date(featurename):
-    """
-    按特征名读取数据
-    :param featurename:
-    :return:
-    """
-    traindf = read_featurefile_train(featurename)
-    testdf = read_featurefile_test(featurename)
-    return traindf, testdf
 
 if __name__ == "__main__":
     off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
@@ -225,7 +60,17 @@ if __name__ == "__main__":
     print('Offline 训练集满减情况', dftrain.if_fd.value_counts() / dftrain.if_fd.count())
     print('测试集满减情况', dftest.if_fd.value_counts() / dftest.if_fd.count())  # 满减分布情况相差较大
 
-    # 数据可视化
+    # 生成特征文件 ##################
+    # f1
+    normal_feature_generate(f1)
+    # sf2 带滑动串口的sf2
+    slide_feature_generate(f2)
+    # sf3 带滑动串口的sf3
+    slide_feature_generate(f3)
+
+
+
+    # 数据可视化 ##################
     # 箱线图
     fig = plt.figure(figsize=(4, 6))
     sns.boxplot(dftrain[(dftrain.label >= 0) & (dftrain.distance >= 0)]['distance'], orient="v", width=0.95)
@@ -270,7 +115,7 @@ if __name__ == "__main__":
     plt.show()
 
     # 特征总览
-    traindf = testdf = read_data('sf3')
+    traindf, testdf = read_data('sf3')
     train_X = get_predictors_df(traindf)
     train_y = get_target_df(traindf)
     test_X = get_predictors_df(testdf)

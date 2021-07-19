@@ -3,15 +3,18 @@
 """
     工具类方法
 """
-from constant import const
 import typing
 import datetime as dt
-from datetime import date
 import pandas as pd
 import numpy as np
 import sys
 import os
 import sklearn.metrics as metrics
+import matplotlib.pyplot as plt
+from constant import const
+from model import get_sklearn_model
+from datetime import date
+from sklearn.model_selection import learning_curve
 
 sys.path.append(os.pardir)
 
@@ -24,6 +27,8 @@ featurepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/feature'
 resultpath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/result'
 tmppath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/tmp'
 scorepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/score'
+myeval = 'roc_auc'
+cvscore = 0
 
 
 def get_discount_rate(s: typing.AnyStr) -> float:
@@ -124,8 +129,8 @@ def get_day_gap(s: str) -> int:
     if s[1] == 'nan':
         return -1
     else:
-        return (date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) - date(int(s[1][0:4]), int(s[1][4:6]),
-                                                                            int(s[1][6:8]))).days
+        return (date(int(s[0][0:4]), int(s[0][4:6]), int(s[0][6:8])) -
+                date(int(s[1][0:4]), int(s[1][4:6]), int(s[1][6:8]))).days
 
 
 def get_label(s: str) -> int:
@@ -168,8 +173,7 @@ def add_label(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def add_agg_feature_names(df: pd.DataFrame, df_group: pd.DataFrame, group_cols, value_col: list[str],
-                          agg_ops, col_names: list[str]) -> pd.DataFrame:
+def add_agg_feature_names(df, df_group, group_cols, value_col, agg_ops, col_names) -> pd.DataFrame:
     """
     统计特征处理函数
     :param df: 添加特征的 DataFrame
@@ -262,7 +266,7 @@ def get_merchant_feature(feature):
     merchant_feature['coupon_rate'] = merchant_feature.sales_user_coupon.astype('float') / merchant_feature.total_sales
     # 将数据中的NaN用0替换
     merchant_feature.total_coupon = merchant_feature.total_coupon.replace(np.nan, 0)
-    return
+    return merchant_feature
 
 
 def get_user_feature(feature):
@@ -345,7 +349,7 @@ def get_user_merchant_feature(feature):
     user_merchant['user_merchant_coupon_buy_rate'] = user_merchant.user_merchant_buy_use_coupon.astype(
         'float') / user_merchant.user_merchant_buy_common.astype('float')
     # 一个用户到店后消费的可能性统计
-    user_merchant['user_merchant_comon_buy_rate'] = user_merchant.user_merchant_buy_common.astype(
+    user_merchant['user_merchant_common_buy_rate'] = user_merchant.user_merchant_buy_common.astype(
         'float') / user_merchant.user_merchant_buy_any.astype('float')
     return user_merchant
 
@@ -385,10 +389,208 @@ def get_leakage_feature(dataset):
     t3['this+_month_user_received_same_coupon_lastone'] = t3.max_date_received - t2.date_received.astype(int)
     # 这个优惠券最远接收时间
     t3['this_month_user_received_same_coupon_firstone'] = t3.date_received.astype(int) - t3.min_date_received
-    t3.this_month_user_received_same_couon_lastone = t3.this_month_user_received_same_couon_lastone.apply(
+    t3.this_month_user_received_same_coupon_lastone = t3.this_month_user_received_same_couon_lastone.apply(
         is_firstlastone)
-    t3.this_month_user_received_same_couon_firstone = t3.this_month_user_received_same_couon_firstone.apply(
+    t3.this_month_user_received_same_coupon_firstone = t3.this_month_user_received_same_couon_firstone.apply(
         is_firstlastone)
+    t3 = t2[['user_id', 'coupon_id', 'date_received', 'this_month_user_received_same_coupon_lastone',
+             'this_month_user_received_same_coupon_firstone']]
+    # 提取第4个特征，一个用户所接收到的所有优惠券的数量
+    t4 = dataset[['user_id', 'date_received']].copy()
+    t4['this_day_received_all_coupon_count'] = 1
+    t4 = t4.groupby(['user_id', 'date_received']).agg('sum').reset_index()
+    # 提取第4个特征，一个用户不同时间所接收到的不同优惠券的数量
+    t5 = dataset[['user_id', 'coupon_id', 'date_received']].copy()
+    t5['this_day_received_same_coupon_count'] = 1
+    t5 = t5.groupby(['user_id', 'coupon_id', 'date_received']).agg('sum').reset_index()
+    # 一个用户不同优惠券的接收时间
+    t6 = dataset[['user_id', 'coupon_id', 'date_received']].copy()
+    t6.date_received = t5.date_received.astype('str')
+    t6 = t6.groupby(['user_id', 'coupon_id'])['date_received'].agg(lambda x: ':'.join(x)).reset_index()
+    t6.rename(columns={'date_received': 'dates'}, inplace=True)
+
+    t7 = dataset[['user_id', 'coupon_id', 'date_received']]
+    t7 = pd.merge(t7, t6, on=['user_id', 'coupon_id'], how='left')
+    t7['date_received_date'] = t7.date_received.astype('str') + '-' + t7.dates
+    t7['date_gap_before'] = t7.date_received_date.apply(get_day_gap_before)
+    t7['date_gap_after'] = t7.date_received_date.apply(get_day_gap_after)
+    t7 = t7[['user_id', 'merchant_id', 'date_received', 'day_gap_before', 'day_gap_after']]
+    other_feature = pd.merge(t1, t, on='use_id')
+    other_feature = pd.merge(other_feature, t3, on=['user_id', 'coupon_id'])
+    other_feature = pd.merge(other_feature, t4, on=['user_id', 'date_received'])
+    other_feature = pd.merge(other_feature, t5, on=['user_id', 'coupon_id', 'date_received'])
+    other_feature = pd.merge(other_feature, t7, on=['user_id', 'coupon_id', 'date_received'])
+    return other_feature
+
+
+def f1(dataset, if_train):
+    result = add_discount(dataset)
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+def f2(dataset, feature, if_train):
+    result = add_discount(dataset)
+    merchant_feature = get_merchant_feature(feature)
+    result = result.merge(merchant_feature, on='merchant_id', how='left')
+    user_feature = get_user_feature(feature)
+    result = result.merge(user_feature, on='user_id', how='left')
+    user_merchant = get_user_merchant_feature(feature)
+    result = result.merge(user_merchant,
+                          on=['user_id', 'merchant_id'],
+                          how='left')
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+def f3(dataset, feature, if_train):
+    result = add_discount(dataset)
+    merchant_feature = get_merchant_feature(feature)
+    result = result.merge(merchant_feature, on='merchant_id', how='left')
+    user_feature = get_user_feature(feature)
+    result = result.merge(user_feature, on='user_id', how='left')
+    user_merchant = get_user_merchant_feature(feature)
+    result = result.merge(user_merchant, on=['user_id', 'merchant_id'], how='left')
+    leakage_feature = get_leakage_feature(feature)
+    result = result.merge(leakage_feature, on=['user_id', 'merchant_id', 'date_received'], how='left')
+    result.drop_duplicates(inplace=True)
+    if if_train:
+        result = add_label(result)
+    return result
+
+
+###########
+# 特征输出
+############
+def normal_feature_generate(feature_function):
+    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
+    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
+    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
+    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
+    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
+    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
+    off_train = off_train[(off_train.coupon_id != 'null') & (off_train.date_received != 'null')
+                          & (off_train.date_received >= '20160101')]
+    dftrain = feature_function(off_train, True)
+    dftest = feature_function(off_test, True)
+
+    dftrain.drop(['date'], axis=1, inplace=True)
+    dftrain.drop(['merchant_id'], axis=1, inplace=True)
+    dftest.drop(['merchant_id'], axis=1, inplace=True)
+
+    print('输出特征')
+    dftrain.to_csv(featurepath + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
+    dftest.to_csv(featurepath + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
+
+
+def slide_feature_generate(feature_function):
+    off_train_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_train.csv'
+    off_test_path = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/ccf_offline_stage1_test_revised.csv'
+    off_train = pd.read_csv(off_train_path, header=0, keep_default_na=False)
+    off_test = pd.read_csv(off_test_path, header=0, keep_default_na=False)
+    off_train.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received', 'date']
+    off_test.columns = ['user_id', 'merchant_id', 'coupon_id', 'discount_rate', 'distance', 'date_received']
+    # 交叉训练集一：收到券的日期大于4月14日且小于5月14日
+    dataset1 = off_train[(off_train.date_received >= '201604014') & (off_train.date_revceived <= '20160514')]
+    # 交叉训练集一特征：线下数据领券和用券时间大于1月1日且小于4月13日
+    feature1 = off_train[(off_train.date >= '20160101') &
+                         (off_train.date <= '20160413') |
+                         ((off_train.date_received >= '20160101') &
+                          (off_train.date_received <= '20160413') &
+                          (off_train.date != 'null'))]
+    # 交叉训练集二：收到券的日期大于5月15日且小于6月15日
+    dataset2 = off_train[(off_train.date_received >= '201605015') & (off_train.date_revceived <= '20160615')]
+    # 交叉训练集二特征：线下数据领券和用券时间大于2月1日且小于5月14日
+    feature2 = off_train[(off_train.date >= '20160201') &
+                         (off_train.date <= '20160514') |
+                         ((off_train.date_received >= '20160201') &
+                          (off_train.date_received <= '20160514') &
+                          (off_train.date != 'null'))]
+    # 测试集
+    dataset3 = off_test
+    # 测试集特征：线下数据中领券和用券的日期大于3月15日且小于6月30日
+    feature3 = off_train[((off_train.date >= '20160315') &
+                          (off_train.date <= '20160630')) |
+                         ((off_train.date != 'null') & (off_train.date_revcived >= '20160315') &
+                          (off_train.date_received) <= '20160630')]
+    dftrain1 = feature_function(dataset1, feature1, True)
+    dftrain2 = feature_function(dataset2, feature1, True)
+    dftrain = pd.concat([dftrain1, dftrain2], axis=0)
+    dftest = feature_function(dataset3, feature3, False)
+    dftrain.drop(['date'], axis=1, inplace=True)
+    dftrain.drop(['merchant_id'], axis=1, inplace=True)
+    dftest.drop(['merchant_id'], axis=1, inplace=True)
+    print('输出特征')
+    dftrain.to_csv(featurepath + 'train_' + feature_function.__name__ + ".csv", index=False, sep=',')
+    dftest.to_csv(featurepath + 'test_' + feature_function.__name__ + ".csv", index=False, sep=',')
+
+
+#####################
+# 特征读取函数
+#####################
+def get_id_df(df):
+    """
+    返回ID列
+    :param df:
+    :return:
+    """
+    return df[id_col_names]
+
+
+def get_target_df(df):
+    """
+    返回target列
+    :param df:
+    :return:
+    """
+    return df[target_col_name]
+
+
+def get_predictors_df(df):
+    """
+    返回特征列
+    :param df:
+    :return:
+    """
+    predictors = [f for f in df.columns if f not in id_target_cols]
+    return predictors
+
+
+def read_featurefile_train(featurename):
+    """
+    按特征名读取训练集
+    :param featurename:
+    :return:
+    """
+    df = pd.read_csv(featurepath + 'train_' + featurename + '.csv', sep=',', encoding='utf-8')
+    df.fillna(0, inplace=True)
+    return df
+
+
+def read_featurefile_test(featurename):
+    """
+    按特征名读取测试集
+    :param featurename:
+    :return:
+    """
+    df = pd.read_csv(featurepath + 'test_' + featurename + '.csv', sep=',', encoding='utf-8')
+    df.fillna(0, inplace=True)
+    return df
+
+
+def read_data(featurename):
+    """
+    按特征名读取数据
+    :param featurename:
+    :return:
+    """
+    traindf = read_featurefile_train(featurename)
+    testdf = read_featurefile_test(featurename)
+    return traindf, testdf
 
 
 def myauc(test):
@@ -406,3 +608,46 @@ def myauc(test):
         auc = metrics.roc_auc_score(coupon_df['label'], coupon_df['pred'])
         aucs.append(auc)
     return np.average(aucs)
+
+
+def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1,
+                        train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
+    """
+    画学习曲线
+    :param estimator:
+    :param title:
+    :param X:
+    :param y:
+    :param ylim:
+    :param cv:
+    :param n_jobs:
+    :param train_sizes:
+    :return:
+    """
+    plt.figure()
+    plt.title(title)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    train_sizes, train_scores, test_scores = learning_curve(estimator, X, y, cv=cv, scoring=myeval, n_jobs=n_jobs,
+                                                            train_sizes=train_sizes)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.mean(test_scores, axis=1)
+
+    plt.fill_between(x=train_sizes, y1=train_scores_mean - train_scores_std, y2=train_scores_mean + train_scores_std,
+                     alpha=0.1, color='r')
+    plt.fill_between(x=train_sizes, y1=test_scores_mean - test_scores_std, y2=test_scores_mean + test_scores_std,
+                     alpha=0.1, color='r')
+    plt.plot(train_sizes, train_scores_mean, 'o-', color='r', label='Train score')
+    plt.plot(train_sizes, test_scores_mean, 'o-', color='r', label='Train score')
+    plt.legend('best')
+    return plt
+
+
+def plot_curve_single(traindf, classifier, cvnum, train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
+    X = get_predictors_df(traindf)
+    y = get_target_df(traindf)
+    estimator = get_sklearn_model(classifier)
+    title = 'learning curve of ' + classifier + ", cv: " + str(cvnum)
+    plot_learning_curve(estimator=estimator, title=title, X=X, y=y, ylim=(0, 1.01), cv=cvnum, train_sizes=train_sizes)
