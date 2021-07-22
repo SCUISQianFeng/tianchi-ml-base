@@ -6,7 +6,9 @@
 import os
 import sys
 
+import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from lightgbm import LGBMClassifier
 from sklearn import metrics
 from sklearn.ensemble import GradientBoostingClassifier
@@ -17,12 +19,20 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from utils import f1
+from utils import f2
+from utils import f3
+from utils import get_id_df
 from utils import get_predictors_df
 from utils import get_target_df
 from utils import myauc
-from utils import get_id_df
+from utils import normal_feature_generate
 from utils import read_data
+from utils import slide_feature_generate
+from utils import strandize_df
 from xgboost import XGBClassifier
+from sklearn.model_selection import learning_curve
+
 
 sys.path.append(os.pardir)
 
@@ -59,6 +69,7 @@ def test_model(traindf, classifier):
     :param classifier:
     :return:
     """
+    normal_feature_generate
     train = traindf[traindf.date_received < 20160615].copy()
     test = traindf[traindf.date_received >= 20160615].copy()
     train_data = get_predictors_df(train).copy()
@@ -112,9 +123,63 @@ def output_predicted(predicted, resultfile, test_feat):
     resultdf['Probability'] = predicted
     return resultdf
 
+def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1,
+                        train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
+    """
+    画学习曲线
+    :param estimator:
+    :param title:
+    :param X:
+    :param y:
+    :param ylim:
+    :param cv:
+    :param n_jobs:
+    :param train_sizes:
+    :return:
+    """
+    plt.figure()
+    plt.title(title)
+    if ylim is not None:
+        plt.ylim(*ylim)
+    train_sizes, train_scores, test_scores = learning_curve(estimator, X, y, cv=cv, scoring=myeval, n_jobs=n_jobs,
+                                                            train_sizes=train_sizes)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.mean(test_scores, axis=1)
+
+    plt.fill_between(x=train_sizes, y1=train_scores_mean - train_scores_std, y2=train_scores_mean + train_scores_std,
+                     alpha=0.1, color='r')
+    plt.fill_between(x=train_sizes, y1=test_scores_mean - test_scores_std, y2=test_scores_mean + test_scores_std,
+                     alpha=0.1, color='r')
+    plt.plot(train_sizes, train_scores_mean, 'o-', color='r', label='Train score')
+    plt.plot(train_sizes, test_scores_mean, 'o-', color='r', label='Train score')
+    plt.legend('best')
+    return plt
+
+
+def plot_curve_single(traindf, classifier, cvnum, train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
+    X = get_predictors_df(traindf)
+    y = get_target_df(traindf)
+    estimator = get_sklearn_model(classifier)
+    title = 'learning curve of ' + classifier + ", cv: " + str(cvnum)
+    plot_learning_curve(estimator=estimator, title=title, X=X, y=y, ylim=(0, 1.01), cv=cvnum, train_sizes=train_sizes)
+
 
 if __name__ == "__main__":
-    traindf, testdf = read_data('sf3')
+    # 生成特征文件
+    normal_feature_generate(f1)
+    slide_feature_generate(f2)
+    slide_feature_generate(f3)
+
+
+    train_f1, test_f1 = read_data('f1')
+    train_f1, test_f1 = strandize_df(train_f1, test_f1)
+    train_f2, test_f2 = read_data('f2')
+    train_f2, test_f2 = strandize_df(train_f2, test_f2)
+    train_f3, test_f3 = read_data('f3')
+    train_f3, test_f3 = strandize_df(train_f3, test_f3)
+
     print('特征sf1朴素贝叶斯成绩')
     test_model(train_f1, 'NB')
     print('特征sf2朴素贝叶斯成绩')

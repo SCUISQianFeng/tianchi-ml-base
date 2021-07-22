@@ -10,11 +10,9 @@ import numpy as np
 import sys
 import os
 import sklearn.metrics as metrics
-import matplotlib.pyplot as plt
 from constant import const
-from model import get_sklearn_model
 from datetime import date
-from sklearn.model_selection import learning_curve
+from sklearn.preprocessing import MinMaxScaler
 
 sys.path.append(os.pardir)
 
@@ -610,44 +608,22 @@ def myauc(test):
     return np.average(aucs)
 
 
-def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1,
-                        train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
-    """
-    画学习曲线
-    :param estimator:
-    :param title:
-    :param X:
-    :param y:
-    :param ylim:
-    :param cv:
-    :param n_jobs:
-    :param train_sizes:
-    :return:
-    """
-    plt.figure()
-    plt.title(title)
-    if ylim is not None:
-        plt.ylim(*ylim)
-    train_sizes, train_scores, test_scores = learning_curve(estimator, X, y, cv=cv, scoring=myeval, n_jobs=n_jobs,
-                                                            train_sizes=train_sizes)
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.mean(test_scores, axis=1)
+def strandize_df(train_data, test_data):
+    feature_columns = [f for f in test_data.columns if f not in id_target_cols]
+    min_max_scaler = MinMaxScaler()
+    min_max_scaler = min_max_scaler.fit(train_data[feature_columns])
 
-    plt.fill_between(x=train_sizes, y1=train_scores_mean - train_scores_std, y2=train_scores_mean + train_scores_std,
-                     alpha=0.1, color='r')
-    plt.fill_between(x=train_sizes, y1=test_scores_mean - test_scores_std, y2=test_scores_mean + test_scores_std,
-                     alpha=0.1, color='r')
-    plt.plot(train_sizes, train_scores_mean, 'o-', color='r', label='Train score')
-    plt.plot(train_sizes, test_scores_mean, 'o-', color='r', label='Train score')
-    plt.legend('best')
-    return plt
+    train_data_scaler = min_max_scaler.transform(train_data[feature_columns])
+    test_data_scaler = min_max_scaler.transform(test_data[feature_columns])
 
+    train_data_scaler = pd.DataFrame(train_data_scaler)
+    train_data_scaler.columns = feature_columns
+    test_data_scaler = pd.DataFrame(test_data_scaler)
+    test_data_scaler.columns = feature_columns
 
-def plot_curve_single(traindf, classifier, cvnum, train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
-    X = get_predictors_df(traindf)
-    y = get_target_df(traindf)
-    estimator = get_sklearn_model(classifier)
-    title = 'learning curve of ' + classifier + ", cv: " + str(cvnum)
-    plot_learning_curve(estimator=estimator, title=title, X=X, y=y, ylim=(0, 1.01), cv=cvnum, train_sizes=train_sizes)
+    train_data_scaler['label'] = train_data['label']
+    test_data_scaler = test_data
+
+    train_data_scaler[id_col_names] = train_data[id_col_names]
+    test_data_scaler[id_col_names] = test_data[id_col_names]
+    return train_data_scaler, test_data_scaler
