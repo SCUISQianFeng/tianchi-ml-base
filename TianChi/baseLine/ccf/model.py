@@ -33,8 +33,10 @@ from utils import strandize_df
 from xgboost import XGBClassifier
 from sklearn.model_selection import learning_curve
 
-
 sys.path.append(os.pardir)
+
+####################### 全局参数 ############
+myeval = 'roc_auc'
 
 
 def get_sklearn_model(model_name):
@@ -123,6 +125,7 @@ def output_predicted(predicted, resultfile, test_feat):
     resultdf['Probability'] = predicted
     return resultdf
 
+
 def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None, n_jobs=1,
                         train_sizes=[0.01, 0.02, 0.05, 0.1, 0.2, 0.3]):
     """
@@ -171,7 +174,6 @@ if __name__ == "__main__":
     normal_feature_generate(f1)
     slide_feature_generate(f2)
     slide_feature_generate(f3)
-
 
     train_f1, test_f1 = read_data('f1')
     train_f1, test_f1 = strandize_df(train_f1, test_f1)

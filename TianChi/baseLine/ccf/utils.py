@@ -627,3 +627,52 @@ def strandize_df(train_data, test_data):
     train_data_scaler[id_col_names] = train_data[id_col_names]
     test_data_scaler[id_col_names] = test_data[id_col_names]
     return train_data_scaler, test_data_scaler
+
+
+def add_discount(df):
+    df['if_df'] = df['discount_rate'].apply(get_id_df)
+    df['full_value'] = df['discount_rate'].apply(get_full_value)
+    df['reduction_value'] = df['discount_rate'].apply(get_reduction_value)
+    df['discount_rate'] = df['discount_rate'].apply(get_discount_rate)
+    df.distance = df.distance.replace('null', np.nan)
+    return df
+
+
+def is_firstlastone(x):
+    if x == 0:
+        return 1
+    elif x > 0:
+        return 0
+    else:
+        return -1
+
+
+def get_day_gap_before(s):
+    date_received, dates = s.split('-')
+    dates = dates.split(':')
+    gaps = []
+    for d in dates:
+        this_gap = (date(int(date_received[0:4]), int(date_received[4:6]), int(date_received[6:8])) -
+                    date(int(d[0:4]), int(d[4:6]), int(d[6:8]))).days
+        if this_gap > 0:
+            gaps.append(this_gap)
+    if len(gaps) == 0:
+        return -1
+    else:
+        return min(gaps)
+
+
+def get_day_gap_after(s):
+    date_received, dates = s.split('-')
+    dates = dates.split(':')
+    gaps = []
+    for d in dates:
+        this_gap = (date(int(d[0:4]), int(date[4:6]), int(date[6:8])) -
+                    date(int(date_received[0:4]), int(date_received[4:6]), int(date_received[6:8]))).days
+        if this_gap > 0:
+            gaps.append(this_gap)
+    if len(gaps) == 0:
+        return -1
+    else:
+        return min(gaps)
+
