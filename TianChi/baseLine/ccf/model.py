@@ -71,17 +71,18 @@ def test_model(traindf, classifier):
     :param classifier:
     :return:
     """
-    train = traindf[traindf.date_received < 20160615].copy()
-    test = traindf[traindf.date_received >= 20160615].copy()
+    train = traindf[traindf.date_received < 20160515].copy()
+    test = traindf[traindf.date_received >= 20160515].copy()
     train_data = get_predictors_df(train).copy()
+    train_target = get_target_df(train).copy()
     test_data = get_predictors_df(test).copy()
-    train_target = get_target_df(train_data).copy()
-    test_target = get_target_df(test_data).copy()
+    test_target = get_target_df(test).copy()
     clf = get_sklearn_model(classifier)
     clf.fit(train_data, train_target)
-    result = clf.predict_proba(test_data)[:, 1]
-    test['pred'] = result
-    score = metrics.roc_auc_score(y_true=test_target, y_score=result)
+    # result = clf.predict_proba(test_data)[:, 1]
+    result = clf.predict_proba(test_data)
+    test['pred'] = result[:, 1]
+    score = metrics.roc_auc_score(y_true=np.array(test_target), y_score=result, multi_class='ovr')
     print(classifier + " 总体AUC： ", score)
     score_coupon = myauc(test)
     print(classifier + " Coupon AUC: ", score_coupon)
@@ -170,15 +171,15 @@ def plot_curve_single(traindf, classifier, cvnum, train_sizes=[0.01, 0.02, 0.05,
 
 if __name__ == "__main__":
     # 生成特征文件
-    normal_feature_generate(f1)
-    slide_feature_generate(f2)
-    slide_feature_generate(f3)
+    # normal_feature_generate(f1)
+    # slide_feature_generate(f2)
+    # slide_feature_generate(f3)
 
     train_f1, test_f1 = read_data('f1')
     train_f1, test_f1 = strandize_df(train_f1, test_f1)
-    train_f2, test_f2 = read_data('f2')
+    train_f2, test_f2 = read_data('sf2')
     train_f2, test_f2 = strandize_df(train_f2, test_f2)
-    train_f3, test_f3 = read_data('f3')
+    train_f3, test_f3 = read_data('sf3')
     train_f3, test_f3 = strandize_df(train_f3, test_f3)
 
     print('特征sf1朴素贝叶斯成绩')
@@ -227,3 +228,61 @@ if __name__ == "__main__":
     # 生成结果数据
     result = output_predicted(predicted, 'sf3_LGB.csv', test_f3)
     result.to_csv('sf3_lgb.csv', header=False, index=False, sep=',')
+
+
+    """
+    特征sf1朴素贝叶斯成绩
+    NB 总体AUC：  0.6315704567026396
+    NB Coupon AUC:  0.47513492443084526
+    特征sf2朴素贝叶斯成绩
+    NB 总体AUC：  0.6868912244641643
+    NB Coupon AUC:  0.4263483743296406
+    特征sf3朴素贝叶斯成绩
+    NB 总体AUC：  0.7278528526227306
+    NB Coupon AUC:  0.3346241343687526
+    特征sf1逻辑回归成绩
+    LR 总体AUC：  0.617843241756065
+    LR Coupon AUC:  0.47513492443084526
+    特征sf2逻辑回归成绩
+    LR 总体AUC：  0.7236992586742659
+    LR Coupon AUC:  0.4254662831971851
+    特征sf3逻辑回归成绩
+    LR 总体AUC：  0.7622139132457416
+    LR Coupon AUC:  0.32090496893176196
+    特征sf1决策树成绩
+    DT 总体AUC：  0.631345357715258
+    DT Coupon AUC:  0.47682317947360436
+    特征sf2决策树成绩
+    DT 总体AUC：  0.538098970838026
+    DT Coupon AUC:  0.48038587060617577
+    特征sf3决策树成绩
+    DT 总体AUC：  0.5507418553648646
+    DT Coupon AUC:  0.43704019807359024
+    特征sf1随机森林成绩
+    RF 总体AUC：  0.6314410975828807
+    RF Coupon AUC:  0.47653655871019246
+    特征sf2随机森林成绩
+    RF 总体AUC：  0.6608804922244299
+    RF Coupon AUC:  0.44237408406626755
+    特征sf3随机森林成绩
+    RF 总体AUC：  0.7293237269158848
+    RF Coupon AUC:  0.3325942927947981
+    特征sf1 XGBoost 成绩
+    XGB 总体AUC：  0.6318014543072061
+    XGB Coupon AUC:  0.4762042659528095
+    特征sf2 XGBoost 成绩
+    XGB 总体AUC：  0.6917311362433022
+    XGB Coupon AUC:  0.42564329582814203
+    特征sf3 XGBoost 成绩
+    XGB 总体AUC：  0.7681882971064747
+    XGB Coupon AUC:  0.3222570644159904
+    特征sf1 LightGBM 成绩
+    LGB 总体AUC：  0.6314981926919995
+    LGB Coupon AUC:  0.4761788845141773
+    特征sf2 LightGBM 成绩
+    LGB 总体AUC：  0.735458248222681
+    LGB Coupon AUC:  0.42595334438954874
+    特征sf3 LightGBM 成绩
+    LGB 总体AUC：  0.7730439775958002
+    LGB Coupon AUC:  0.3100123951602439
+    """

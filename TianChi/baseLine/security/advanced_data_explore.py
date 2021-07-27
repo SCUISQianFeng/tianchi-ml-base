@@ -1,0 +1,151 @@
+# -*- coding:utf-8 -*-
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+def file_id_cnt_cut(x):
+    """file_id_cnt & label 分析"""
+    if x < 15000:
+        return x // 1e3
+    else:
+        return 15
+
+
+if __name__ == "__main__":
+    train_path = r'E:/DataSet/Tianchi/security/security_train/security_train.csv'
+    test_path = r'E:/DataSet/Tianchi/security/security_test/security_test.csv'
+
+    train = pd.read_csv(train_path)
+    test = pd.read_csv(test_path)
+
+    train_analysis = train[['file_id', 'label']].drop_duplicates(subset=['file_id', 'label'], keep='last')
+    dic_ = train['file_id'].value_counts().to_dict()
+    train_analysis['file_id_cnt'] = train_analysis['file_id'].map(dic_).values
+    # train_analysis['file_id_cnt'].value_counts()
+    sns.distplot(train_analysis['file_id_cnt'])
+    print('There are {} data are below 10000'.format(
+        np.sum(train_analysis['file_id_cnt'] <= 1e4) / train_analysis.shape[0]))
+
+    train_analysis['file_id_cnt_cut'] = train_analysis['file_id_cnt'].map(file_id_cnt_cut).values
+    plt.figure(figsize=[16, 20])
+    plt.subplot(321)
+    train_analysis[train_analysis['file_id_cnt_cut'] == 0]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('file_id_cnt_cut = 0')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.subplot(322)
+    train_analysis[train_analysis['file_id_cnt_cut'] == 1]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('file_id_cnt_cut = 1')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.subplot(323)
+    train_analysis[train_analysis['file_id_cnt_cut'] == 14]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('file_id_cnt_cut = 14')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.subplot(324)
+    train_analysis[train_analysis['file_id_cnt_cut'] == 15]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('file_id_cnt_cut = 15')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.subplot(313)
+    train_analysis['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('All Data')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.figure(figsize=[16, 10])
+    sns.swarmplot(x=train_analysis.iloc[:1000]['label'], y=train_analysis.iloc[:1000]['file_id_cnt'])
+
+    dic_ = train.groupby('file_id')['api'].nunique().to_dict()
+    train_analysis['file_id_api_nunique'] = train_analysis['file_id'].map(dic_).values
+    sns.distplot(train_analysis['file_id_api_nunique'])
+    # train_analysis['file_id_api_nunique'].describe()
+
+    train_analysis.loc[train_analysis.file_id_api_nunique >= 100]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('File with api nunique >= 100')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.figure(figsize=[16, 10])
+    sns.boxplot(x=train_analysis['label'], y=train_analysis['file_id_api_nunique'])
+    dic_ = train.groupby('file_id')['index'].nunique().to_dict()
+    train_analysis['file_id_index_nunique'] = train_analysis['file_id'].map(dic_).values
+    # train_analysis['file_id_index_nunique'].describe()
+    sns.distplot(train_analysis['file_id_index_nunique'])
+
+    plt.figure(figsize=[16, 8])
+    plt.subplot(121)
+    train_analysis.loc[train_analysis.file_id_index_nunique == 1]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('File with index nunique = 1')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    """file_id_index_nunique + label分析"""
+    plt.subplot(122)
+    train_analysis.loc[train_analysis.file_id_index_nunique == 5001]['label'].value_counts().sort_index().plot(
+        kind='bar')
+    plt.title('File with index nunique = 5001')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+    plt.figure(figsize=[16, 10])
+    sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_api_nunique'])
+    """file_id & index & max"""
+    dic_ = train.groupby('file_id')['index'].max().to_dict()
+    train_analysis['file_id_index_max'] = train_analysis['file_id'].map(dic_).values
+    sns.distplot(train_analysis['file_id_index_max'])
+    plt.figure(figsize=[16, 10])
+    sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_index_max'])
+    plt.figure(figsize=[16, 10])
+    sns.stripplot(x=train_analysis['label'], y=train_analysis['file_id_index_max'])
+    """file_id & tid 分析"""
+    dic_ = train.groupby('file_id')['tid'].nunique().to_dict()
+    train_analysis['file_id_tid_nunique'] = train_analysis['file_id'].map(dic_).values
+    # train_analysis['file_id_tid_nunique'].describe()
+    sns.distplot(train_analysis['file_id_tid_nunique'])
+    """file_id_tid_nunique & label 分析"""
+    plt.figure(figsize=[16, 8])
+    plt.subplot(121)
+    train_analysis.loc[train_analysis.file_id_tid_nunique < 5]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('File with tid nunique < 5')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+    plt.figure(figsize=[12, 8])
+    sns.boxplot(x=train_analysis['label'], y=train_analysis['file_id_tid_nunique'])
+    plt.figure(figsize=[12, 8])
+    sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_tid_nunique'])
+    """file_id & tid & max"""
+    dic_ = train.groupby('file_id')['tid'].max().to_dict()
+    train_analysis['file_id_tid_max'] = train_analysis['file_id'].map(dic_).values
+
+    # train_analysis['file_id_tid_max'].describe()
+    plt.figure(figsize=[16, 8])
+    plt.subplot(121)
+    train_analysis.loc[train_analysis.file_id_tid_max >= 3000]['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('File with tid max >= 3000')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+
+    plt.subplot(122)
+    train_analysis['label'].value_counts().sort_index().plot(kind='bar')
+    plt.title('All Data')
+    plt.xlabel('label')
+    plt.ylabel('label_number')
+    """api & label"""
+    train['api_label'] = train['api'] + '_' + train['label'].astype(str)
+    dic_ = train['api_label'].value_counts().to_dict()
+    df_api_label = pd.DataFrame.from_dict(dic_, orient='index').reset_index()
+    df_api_label.columns = ['api_label', 'api_label_count']
+    df_api_label['label'] = df_api_label['api_label'].apply(lambda x: int(x.split('_')[-1]))
+    labels = df_api_label['label'].unique()
+    for label in range(8):
+        print('*' * 50, label, '*' * 50)
+        print(df_api_label.loc[df_api_label.label == label].sort_values('api_label_count').iloc[-5:][
+                  ['api_label', 'api_label_count']])
+        print('*' * 103)
