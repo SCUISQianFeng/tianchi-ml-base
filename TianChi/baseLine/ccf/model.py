@@ -71,7 +71,6 @@ def test_model(traindf, classifier):
     :param classifier:
     :return:
     """
-    normal_feature_generate
     train = traindf[traindf.date_received < 20160615].copy()
     test = traindf[traindf.date_received >= 20160615].copy()
     train_data = get_predictors_df(train).copy()

@@ -3,8 +3,6 @@
 """
     工具类方法
 """
-import typing
-import datetime as dt
 import pandas as pd
 import numpy as np
 import sys
@@ -29,7 +27,7 @@ myeval = 'roc_auc'
 cvscore = 0
 
 
-def get_discount_rate(s: typing.AnyStr) -> float:
+def get_discount_rate(s) -> float:
     """
     计算折扣率，将满减和折扣统一
     :param s:
@@ -47,7 +45,7 @@ def get_discount_rate(s: typing.AnyStr) -> float:
         return 1.0 - float(s[1]) / float(s[0])
 
 
-def get_if_fd(s: typing.AnyStr) -> int:
+def get_if_fd(s) -> int:
     """
     获取是否满减: 输入是50:20的形式就是满减
     :param s:
@@ -61,7 +59,7 @@ def get_if_fd(s: typing.AnyStr) -> int:
         return int(s[0])
 
 
-def get_full_value(s: [typing.AnyStr, typing.SupportsFloat]) -> int:
+def get_full_value(s) -> int:
     """
     获取满减的条件
     :param s:
@@ -75,7 +73,7 @@ def get_full_value(s: [typing.AnyStr, typing.SupportsFloat]) -> int:
         return int(s[0])
 
 
-def get_reduction_value(s: typing.AnyStr) -> int:
+def get_reduction_value(s) -> int:
     """
     获取满减的优惠
     :param s:
