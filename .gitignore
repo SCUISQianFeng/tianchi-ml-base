@@ -137,3 +137,4 @@ dmypy.json
 TianChi/baseLine/repeatPurchase/all_data_test.csv
 TianChi/baseLine/repeatPurchase/all_data_test_1000.csv
 TianChi/baseLine/repeatPurchase/product2vec.model
+!/TianChi/baseLine/nlpNews/train.csv
