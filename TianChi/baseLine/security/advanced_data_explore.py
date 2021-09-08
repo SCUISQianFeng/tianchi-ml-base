@@ -59,19 +59,23 @@ if __name__ == "__main__":
     plt.title('All Data')
     plt.xlabel('label')
     plt.ylabel('label_number')
+    plt.show()
 
     plt.figure(figsize=[16, 10])
     sns.swarmplot(x=train_analysis.iloc[:1000]['label'], y=train_analysis.iloc[:1000]['file_id_cnt'])
+    plt.show()
 
     dic_ = train.groupby('file_id')['api'].nunique().to_dict()
     train_analysis['file_id_api_nunique'] = train_analysis['file_id'].map(dic_).values
     sns.distplot(train_analysis['file_id_api_nunique'])
+    plt.show()
     # train_analysis['file_id_api_nunique'].describe()
 
     train_analysis.loc[train_analysis.file_id_api_nunique >= 100]['label'].value_counts().sort_index().plot(kind='bar')
     plt.title('File with api nunique >= 100')
     plt.xlabel('label')
     plt.ylabel('label_number')
+    plt.show()
 
     plt.figure(figsize=[16, 10])
     sns.boxplot(x=train_analysis['label'], y=train_analysis['file_id_api_nunique'])
@@ -79,6 +83,7 @@ if __name__ == "__main__":
     train_analysis['file_id_index_nunique'] = train_analysis['file_id'].map(dic_).values
     # train_analysis['file_id_index_nunique'].describe()
     sns.distplot(train_analysis['file_id_index_nunique'])
+    plt.show()
 
     plt.figure(figsize=[16, 8])
     plt.subplot(121)
@@ -96,6 +101,8 @@ if __name__ == "__main__":
     plt.ylabel('label_number')
     plt.figure(figsize=[16, 10])
     sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_api_nunique'])
+    plt.show()
+
     """file_id & index & max"""
     dic_ = train.groupby('file_id')['index'].max().to_dict()
     train_analysis['file_id_index_max'] = train_analysis['file_id'].map(dic_).values
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_index_max'])
     plt.figure(figsize=[16, 10])
     sns.stripplot(x=train_analysis['label'], y=train_analysis['file_id_index_max'])
+    plt.show()
     """file_id & tid 分析"""
     dic_ = train.groupby('file_id')['tid'].nunique().to_dict()
     train_analysis['file_id_tid_nunique'] = train_analysis['file_id'].map(dic_).values
@@ -116,10 +124,14 @@ if __name__ == "__main__":
     plt.title('File with tid nunique < 5')
     plt.xlabel('label')
     plt.ylabel('label_number')
+
     plt.figure(figsize=[12, 8])
     sns.boxplot(x=train_analysis['label'], y=train_analysis['file_id_tid_nunique'])
+
     plt.figure(figsize=[12, 8])
     sns.violinplot(x=train_analysis['label'], y=train_analysis['file_id_tid_nunique'])
+    plt.show()
+
     """file_id & tid & max"""
     dic_ = train.groupby('file_id')['tid'].max().to_dict()
     train_analysis['file_id_tid_max'] = train_analysis['file_id'].map(dic_).values
@@ -137,6 +149,8 @@ if __name__ == "__main__":
     plt.title('All Data')
     plt.xlabel('label')
     plt.ylabel('label_number')
+    plt.show()
+
     """api & label"""
     train['api_label'] = train['api'] + '_' + train['label'].astype(str)
     dic_ = train['api_label'].value_counts().to_dict()
@@ -149,3 +163,71 @@ if __name__ == "__main__":
         print(df_api_label.loc[df_api_label.label == label].sort_values('api_label_count').iloc[-5:][
                   ['api_label', 'api_label_count']])
         print('*' * 103)
+
+
+"""
+************************************************** 0 **************************************************
+                   api_label  api_label_count
+20     CryptDecodeObjectEx_0           808724
+19           RegOpenKeyExW_0           815653
+11  LdrGetProcedureAddress_0          1067389
+9                  NtClose_0          1150929
+5         RegQueryValueExW_0          1793509
+*******************************************************************************************************
+************************************************** 1 **************************************************
+                    api_label  api_label_count
+180             RegCloseKey_1            83134
+160              NtReadFile_1           101051
+102  LdrGetProcedureAddress_1           199218
+75                  NtClose_1           268922
+72         RegQueryValueExW_1           283562
+*******************************************************************************************************
+************************************************** 2 **************************************************
+                   api_label  api_label_count
+47              NtReadFile_2           429733
+34          Process32NextW_2           609066
+28        RegQueryValueExW_2           704073
+27  LdrGetProcedureAddress_2           711169
+12                 NtClose_2          1044951
+*******************************************************************************************************
+************************************************** 3 **************************************************
+                   api_label  api_label_count
+32                 NtClose_3           614574
+31             RegCloseKey_3           616165
+25        RegQueryValueExW_3           749380
+24  LdrGetProcedureAddress_3           762139
+13           RegOpenKeyExW_3           937860
+*******************************************************************************************************
+************************************************** 4 **************************************************
+                    api_label  api_label_count
+270             RegCloseKey_4            43475
+257  LdrGetProcedureAddress_4            46977
+238        RegQueryValueExW_4            53934
+236                 NtClose_4            54087
+211           RegOpenKeyExW_4            68092
+*******************************************************************************************************
+************************************************** 5 **************************************************
+                  api_label  api_label_count
+6        GetSystemMetrics_5          1381193
+3                 NtClose_5          2076013
+2            GetCursorPos_5          2397779
+1            Thread32Next_5          4973322
+0  LdrGetProcedureAddress_5          5574419
+*******************************************************************************************************
+************************************************** 6 **************************************************
+                    api_label  api_label_count
+105           RegOpenKeyExW_6           193608
+99         RegQueryValueExW_6           206940
+82                  NtClose_6           254385
+40   LdrGetProcedureAddress_6           503839
+8          NtDelayExecution_6          1197309
+*******************************************************************************************************
+************************************************** 7 **************************************************
+                   api_label  api_label_count
+18        RegQueryValueExW_7           837933
+17          Process32NextW_7           856303
+14        NtDelayExecution_7           937033
+10                 NtClose_7          1120847
+4   LdrGetProcedureAddress_7          1839155
+*******************************************************************************************************
+"""

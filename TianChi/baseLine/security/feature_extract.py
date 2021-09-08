@@ -130,11 +130,12 @@ def api_pivot_count_features(df):
     tmp_pivot = memory_process._memory_process(tmp_pivot)
     return tmp_pivot
 
+
 def api_pivot_nunique_features(df):
-    tmp = df.groupby(['file_id','api'])['tid'].nunique().to_frame('api_tid_nunique').reset_index()
-    tmp_pivot = pd.pivot_table(data=tmp,index = 'file_id',columns='api',values='api_tid_nunique',fill_value=0)
-    tmp_pivot.columns = [tmp_pivot.columns.names[0] + '_pivot_'+ str(col) for col in tmp_pivot.columns]
-    tmp_pivot.reset_index(inplace = True)
+    tmp = df.groupby(['file_id', 'api'])['tid'].nunique().to_frame('api_tid_nunique').reset_index()
+    tmp_pivot = pd.pivot_table(data=tmp, index='file_id', columns='api', values='api_tid_nunique', fill_value=0)
+    tmp_pivot.columns = [tmp_pivot.columns.names[0] + '_pivot_' + str(col) for col in tmp_pivot.columns]
+    tmp_pivot.reset_index(inplace=True)
     memory_process = _Data_Preprocess()
     tmp_pivot = memory_process._memory_process(tmp_pivot)
     return tmp_pivot

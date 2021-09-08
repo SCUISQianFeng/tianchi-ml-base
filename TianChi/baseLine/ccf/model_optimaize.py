@@ -5,6 +5,11 @@ import datetime
 from sklearn.model_selection import StratifiedKFold
 import lightgbm as lgb
 import xgboost as xgb
+from utils import f1
+from utils import f2
+from utils import f3
+from utils import slide_feature_generate
+from utils import normal_feature_generate
 import matplotlib.pyplot as plt
 from sklearn.model_selection import learning_curve
 from sklearn.model_selection import GridSearchCV
@@ -31,12 +36,16 @@ myeval = 'roc_auc'
 pred_result_col = 'predicted'
 # cvscore=0
 ############目录定义#################################
-datapath = '../data/'
-featurepath = '../feature/'
-resultpath = '../result/'
-tmppath = '../tmp/'
-scorepath = '../score/'
-
+# datapath = '../data/'
+# featurepath = '../feature/'
+# resultpath = '../result/'
+# tmppath = '../tmp/'
+# scorepath = '../score/'
+datapath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/'
+featurepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/feature'
+resultpath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/result'
+tmppath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/tmp'
+scorepath = r'E:/DataSet/Tianchi/o2oSeason1/O2O_data/score'
 
 ###########工具函数#############################################
 # 返回ID列
@@ -493,14 +502,12 @@ def classifier_single_sep_fd(featurename, classifier, cvnum, param=None):
 
 
 if __name__ == "__main__":
+    # normal_feature_generate(f1)
+    # slide_feature_generate(f2)
+    # slide_feature_generate(f3)
     # 采用f2版本特征，LightGBM，5折，默认参数
-    classifier_single('sf2', 'LGB', 5)
-    # 采用f3版本特征，LightGBM，5折，默认参数
-    classifier_single('sf3', 'LGB', 5)
-    # 采用f3版本特征，LightGBM，5折，优化后参数
-
     params = {'boosting_type': 'gbdt',
-              'objective': 'binary',
+               'objective': 'binary',
               'eval_metric': 'auc',
               'n_estimators': 200,
               'max_depth': 5,
@@ -517,6 +524,11 @@ if __name__ == "__main__":
               'seed': 1024,
               'n_thread': 12
               }
+    # classifier_single('sf2', 'LGB', 5, params)
+    # 采用f3版本特征，LightGBM，5折，默认参数
+    # classifier_single('sf3', 'LGB', 5)
+    # 采用f3版本特征，LightGBM，5折，优化后参数
+
     classifier_single('sf3', 'LGB', 5, params)
     # 采用f3版本特征，LightGBM+XGBoost融合，5折，默认参数
     classifier_multi('sf3', ['XGB', 'LGB'], 5, multi_mean)
