@@ -254,8 +254,143 @@ class Vocab():
 
 vocab = Vocab(train_data)
 
+###########################################
+# 4
+###########################################
+
+# build module
+import torch.nn as nn
+import torch.nn.functional as F
 
 
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.weight = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.weight.data.normal_(mean=0.0, std=0.05)
+
+        self.bias = nn.Parameter(torch.Tensor(hidden_size))
+        b = np.zeros(hidden_size, dtype=np.float32)
+        self.bias.data.copy_(torch.from_numpy(b))
+
+        self.query = nn.Parameter(torch.Tensor(hidden_size))
+        self.query.data.normal_(mean=0.0, std=0.05)
+
+    def forward(self, batch_hidden, batch_masks):
+        # batch_hidden: b x len x hidden_size (2 * hidden_size of lstm)
+        # batch_masks:  b x len
+
+        # linear
+        key = torch.matmul(batch_hidden, self.weight) + self.bias  # b x len x hidden
+
+        # compute attention
+        outputs = torch.matmul(key, self.query)  # b x len
+
+        masked_outputs = outputs.masked_fill((1 - batch_masks).bool(), float(-1e32))
+
+        attn_scores = F.softmax(masked_outputs, dim=1)  # b x len
+
+        # 对于全零向量，-1e32的结果为 1/len, -inf为nan, 额外补0
+        masked_attn_scores = attn_scores.masked_fill((1 - batch_masks).bool(), 0.0)
+
+        # sum weighted sources
+        batch_outputs = torch.bmm(masked_attn_scores.unsqueeze(1), key).squeeze(1)  # b x hidden
+
+        return batch_outputs, attn_scores
+
+
+# build word encoder
+word2vec_path = '../emb/word2vec.txt'
+dropout = 0.15
+
+
+class WordCNNEncoder(nn.Module):
+    def __init__(self, vocab):
+        super(WordCNNEncoder, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.word_dims = 100
+
+        self.word_embed = nn.Embedding(vocab.word_size, self.word_dims, padding_idx=0)
+
+        extword_embed = vocab.load_pretrained_embs(word2vec_path)
+        extword_size, word_dims = extword_embed.shape
+        logging.info("Load extword embed: words %d, dims %d." % (extword_size, word_dims))
+
+        self.extword_embed = nn.Embedding(extword_size, word_dims, padding_idx=0)
+        self.extword_embed.weight.data.copy_(torch.from_numpy(extword_embed))
+        self.extword_embed.weight.requires_grad = False
+
+        input_size = self.word_dims
+
+        self.filter_sizes = [2, 3, 4]  # n-gram window
+        self.out_channel = 100
+        self.convs = nn.ModuleList([nn.Conv2d(1, self.out_channel, (filter_size, input_size), bias=True)
+                                    for filter_size in self.filter_sizes])
+
+    def forward(self, word_ids, extword_ids):
+        # word_ids: sen_num x sent_len
+        # extword_ids: sen_num x sent_len
+        # batch_masks: sen_num x sent_len
+        sen_num, sent_len = word_ids.shape
+
+        word_embed = self.word_embed(word_ids)  # sen_num x sent_len x 100
+        extword_embed = self.extword_embed(extword_ids)
+        batch_embed = word_embed + extword_embed
+
+        if self.training:
+            batch_embed = self.dropout(batch_embed)
+
+        batch_embed.unsqueeze_(1)  # sen_num x 1 x sent_len x 100
+
+        pooled_outputs = []
+        for i in range(len(self.filter_sizes)):
+            filter_height = sent_len - self.filter_sizes[i] + 1
+            conv = self.convs[i](batch_embed)
+            hidden = F.relu(conv)  # sen_num x out_channel x filter_height x 1
+
+            mp = nn.MaxPool2d((filter_height, 1))  # (filter_height, filter_width)
+            pooled = mp(hidden).reshape(sen_num,
+                                        self.out_channel)  # sen_num x out_channel x 1 x 1 -> sen_num x out_channel
+
+            pooled_outputs.append(pooled)
+
+        reps = torch.cat(pooled_outputs, dim=1)  # sen_num x total_out_channel
+
+        if self.training:
+            reps = self.dropout(reps)
+
+        return reps
+
+
+# build sent encoder
+sent_hidden_size = 256
+sent_num_layers = 2
+
+
+class SentEncoder(nn.Module):
+    def __init__(self, sent_rep_size):
+        super(SentEncoder, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+
+        self.sent_lstm = nn.LSTM(
+            input_size=sent_rep_size,
+            hidden_size=sent_hidden_size,
+            num_layers=sent_num_layers,
+            batch_first=True,
+            bidirectional=True
+        )
+
+    def forward(self, sent_reps, sent_masks):
+        # sent_reps:  b x doc_len x sent_rep_size
+        # sent_masks: b x doc_len
+
+        sent_hiddens, _ = self.sent_lstm(sent_reps)  # b x doc_len x hidden*2
+        sent_hiddens = sent_hiddens * sent_masks.unsqueeze(2)
+
+        if self.training:
+            sent_hiddens = self.dropout(sent_hiddens)
+
+        return sent_hiddens
 ###########################################
 # 4
 ###########################################
