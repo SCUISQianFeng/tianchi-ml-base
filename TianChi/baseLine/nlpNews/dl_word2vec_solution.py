@@ -13,14 +13,12 @@ np.random.seed(seed)
 torch.cuda.manual_seed(seed)
 torch.manual_seed(seed)
 
-
 #########################################################
-
 
 
 # split data to 10 fold
 fold_num = 10
-data_file = '../data/train_set.csv'
+data_file = r'../data/train_set.csv'
 import pandas as pd
 
 
@@ -104,6 +102,7 @@ def all_data2fold(fold_num, num=10000):
 
     return fold_data
 
+
 #########################################################
 
 fold_data = all_data2fold(10)
@@ -124,8 +123,8 @@ logging.info('Total %d docs.' % len(train_texts))
 logging.info('Start training...')
 from gensim.models.word2vec import Word2Vec
 
-num_features = 100     # Word vector dimensionality
-num_workers = 8       # Number of threads to run in parallel
+num_features = 100  # Word vector dimensionality
+num_workers = 8  # Number of threads to run in parallel
 
 train_texts = list(map(lambda x: list(x.split()), train_texts))
 model = Word2Vec(train_texts, workers=num_workers, size=num_features)

@@ -3,6 +3,7 @@ import random
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)s: %(message)s')
 
