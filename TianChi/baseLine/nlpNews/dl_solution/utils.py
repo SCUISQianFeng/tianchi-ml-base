@@ -5,8 +5,18 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 import numpy as np
 import pandas as pd
+# from sklearn.utils import shuffle
+import sklearn as sk
+import logging
+from collections import Counter
+from transformers import BasicTokenizer
+from torch import nn
+import torch
+
+basic_tokenizer = BasicTokenizer()
 
 
+# 公共静态参数
 def reformat(num, n):
     """
     小数格式化 类似于 0.2f
@@ -37,6 +47,7 @@ def batch_slice(data, batch_size):
     :param batch_size: 每批的数据大小
     :return: 迭代数据
     """
+    print("batch_slice")
     batch_num = int(np.ceil(len(data) / float(batch_size)))
     for i in range(batch_num):
         # 最后一个批次的数据可能小于batch_size
@@ -53,10 +64,10 @@ def data_iter(data, batch_size, shuffle=True, noise=1.0):
     """
     batched_data = []
     if shuffle:
-        np.random.shuffle(data)
-
+        data = sk.utils.shuffle(data)
+        # example[1]: label
         lengths = [example[1] for example in data]
-        print(lengths)
+        # 这里的data 是经过编号只有才能使用的
         noisy_lengths = [- (l + np.random.uniform(- noise, noise)) for l in lengths]
         sorted_indices = np.argsort(noisy_lengths).tolist()
         sorted_data = [data[i] for i in sorted_indices]
@@ -72,9 +83,216 @@ def data_iter(data, batch_size, shuffle=True, noise=1.0):
         yield batch
 
 
+def all_data2fold(data_file, fold_num, num=10000):
+    fold_data = []
+    f = pd.read_csv(data_file, sep='\t', encoding='UTF-8')
+    texts = f['text'].tolist()[:num]
+    labels = f['label'].tolist()[:num]
+    total = len(labels)
+    index = list(range(total))
+    np.random.shuffle(index)
+
+    all_texts = []
+    all_labels = []
+    for i in index:
+        all_texts.append(texts[i])
+        all_labels.append(labels[i])
+
+    label2id = {}
+    for i in range(total):
+        label = str(all_labels[i])
+        if label not in label2id:
+            label2id[label] = [i]
+        else:
+            label2id[label].append(i)  # label2id[label]: [1, 4, 8..]
+    all_index = [[] for _ in range(fold_num)]
+    for label, data in label2id.items():
+        # 每个类别分层采样
+        batch_size = int(len(data) / fold_num)
+        other = len(data) - batch_size * fold_num
+        for i in range(fold_num):
+            cur_batch_size = batch_size + 1 if i < other else batch_size
+            # 在上一批次的基础上采样
+            batch_data = [data[i * batch_size + b] for b in range(cur_batch_size)]
+            # 每种类别对应的数据
+            all_index[i].extend(batch_data)
+
+    batch_size = int(total / fold_num)
+    other_texts = []
+    other_labels = []
+    other_num = 0
+    start = 0
+    for fold in range(fold_num):
+        num = len(all_index[fold])
+        texts = [all_texts[i] for i in all_index[fold]]
+        labels = [all_labels[i] for i in all_index[fold]]
+
+        if num > batch_size:
+            fold_texts = texts[:batch_size]
+            other_texts.extend(texts[batch_size:])
+            fold_labels = labels[:batch_size]
+            other_labels.extend(labels[batch_size:])
+            other_num += num - batch_size
+        elif num < batch_size:
+            end = start + batch_size - num
+            fold_texts = texts + other_texts[start: end]
+            fold_labels = labels + other_labels[start: end]
+            start = end
+        else:
+            fold_texts = texts
+            fold_labels = labels
+
+        assert batch_size == len(fold_labels)
+
+        # shuffle
+        index = list(range(batch_size))
+        np.random.shuffle(index)
+
+        shuffle_fold_texts = []
+        shuffle_fold_labels = []
+        for i in index:
+            shuffle_fold_texts.append(fold_texts[i])
+            shuffle_fold_labels.append(fold_labels[i])
+
+        data = {'label': shuffle_fold_labels, 'text': shuffle_fold_texts}
+        fold_data.append(data)
+    logging.info("Fold lens %s", str([len(data['label']) for data in fold_data]))
+
+    return fold_data
+
+
+class Vocab():
+    def __init__(self, train_data):
+        self.min_count = 5
+        self._id2word = ['[PAD]', '[UNK]']
+        self._id2extword = ['[PAD]', '[UNK]']
+        self._id2label = []
+        self.target_name = []
+        self.build_vocab(train_data)
+
+        reverse = lambda x: dict(zip(x, range(len(x))))  # 形如['a', 'b'...] => {'a': 0, 'b': 1,...}
+        self._word2id = reverse(self._id2word)
+        self._label2id = reverse(self._id2label)
+
+        logging.info("Build vocab: words %d, labels %d." % (self.word_size, self.label_size))
+
+    def build_vocab(self, data):
+        self.word_counter = Counter()
+        for text in data['text']:
+            words = text.split(" ")
+            for word in words:
+                # 每个词出现的次数
+                self.word_counter[word] += 1
+        for word, count in self.word_counter.most_common():
+            if count >= self.min_count:
+                self._id2word.append(word)
+
+        label2name = {0: '科技', 1: '股票', 2: '体育', 3: '娱乐', 4: '时政', 5: '社会', 6: '教育', 7: '财经',
+                      8: '家居', 9: '游戏', 10: '房产', 11: '时尚', 12: '彩票', 13: '星座'}
+        self.label_counter = Counter(data['label'])
+
+        for label in range(len(self.label_counter)):
+            count = self.label_counter[label]
+            self._id2label.append(label)
+            self.target_name.append(label2name[label])
+
+    def load_pretrained_embs(self, embfile):
+        with open(embfile, encoding='utf-8') as f:
+            lines = f.readlines()
+            items = lines[0].split()
+            word_count, embedding_dim = int(items[0]), int(items[1])
+
+        index = len(self._id2extword)  # 单个字长度？
+        embeddings = np.zeros((word_count + index, embedding_dim))
+        for line in lines[1:]:
+            values = line.split()
+            self._id2extword.append(values[0])
+            vector = np.array(values[1:], dtype='float64')
+            embeddings[self.unk] += vector
+            embeddings[index] = vector
+            index += 1
+
+        embeddings[self.unk] = embeddings[self.unk] / word_count
+        embeddings = embeddings / np.std(embeddings)
+
+        reverse = lambda x: dict(zip(x, range(len(x))))
+        self._exrword2id = reverse(self._id2extword)
+
+        assert len(set(self._id2extword)) == len(self._id2extword)
+
+        return embeddings
+
+    def word2id(self, xs):
+        if isinstance(xs, list):
+            return [self._word2id.get(x, self.unk) for x in xs]
+        return self._word2id.get(xs, self.unk)
+
+    def extword2id(self, xs):
+        if isinstance(xs, list):
+            return [self._extword2id.get(x, self.unk) for x in xs]
+        return self._extword2id.get(xs, self.unk)
+
+    def label2id(self, xs):
+        if isinstance(xs, list):
+            return [self._label2id.get(x, self.unk) for x in xs]
+        return self._label2id.get(xs, self.unk)
+
+    @property
+    def word_size(self):
+        return len(self._id2word)
+
+    @property
+    def extword_size(self):
+        return len(self._id2extword)
+
+    @property
+    def label_size(self):
+        return len(self._id2label)
+
+
+class Attention(nn.Moduels):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.weight = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.weight.data.normal_(mean=0.0, std=0.05)
+
+        self.bias = nn.Parameter(torch.Tensor(hidden_size))
+        b = np.zeros(hidden_size, dtype=np.float32)
+        self.bias.data.copy_(torch.from_numpy(b))
+
+        self.query = nn.Parameter(torch.Tensor(hidden_size))
+        self.query.data.normal_(mean=0.0, std=0.05)
+
+    def forward(self, batch_hidden, batch_masks):
+
+
+
 if __name__ == "__main__":
     data_path = r'E:\DataSet\Tianchi\nlpNews\train_set\train_set.csv'
     # data = pd.read_csv(data_path, sep='\t')
     data = pd.read_csv(data_path, sep='\t', nrows=100)
-    # print(data['label'])
-    batch_slice(data, 10)
+    # build train, dev, test data
+    fold_num = 10
+    data_file = r'E:\DataSet\Tianchi\nlpNews\train_set\train_set.csv'
+    fold_data = all_data2fold(data_file=data_file, fold_num=10)
+
+    fold_id = 9
+    # dev
+    dev_data = fold_data[fold_id]
+
+    # train
+    train_texts = []
+    train_labels = []
+    for i in range(0, fold_id):
+        data = fold_data[i]
+        train_texts.extend(data['text'])
+        train_labels.extend(data['label'])
+
+    train_data = {'label': train_labels, 'text': train_texts}
+
+    # test
+    test_data_file = r'E:\DataSet\Tianchi\nlpNews\test_set\test_set.csv'
+    f = pd.read_csv(test_data_file, sep='\t', encoding='UTF-8')
+    texts = f['text'].tolist()
+    test_data = {'label': [0] * len(texts), 'text': texts}
+    vocab = Vocab(train_data)
