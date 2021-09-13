@@ -1,5 +1,7 @@
 # -*- coding:utf-8 -*-
 
+# -*- coding:utf-8 -*-
+
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
@@ -256,7 +258,7 @@ class Vocab():
         return len(self._id2label)
 
 
-class Attention(nn.Moduels):
+class Attention(nn.Module):
     def __init__(self, hidden_size):
         super(Attention, self).__init__()
         self.weight = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
