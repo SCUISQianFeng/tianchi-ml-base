@@ -138,3 +138,9 @@ TianChi/baseLine/repeatPurchase/all_data_test.csv
 TianChi/baseLine/repeatPurchase/all_data_test_1000.csv
 TianChi/baseLine/repeatPurchase/product2vec.model
 !/TianChi/baseLine/nlpNews/train.csv
+TianChi/baseLine/repeatPurchase/test_all.csv
+TianChi/baseLine/repeatPurchase/train_all.csv
+TianChi/baseLine/security/NN/
+TianChi/baseLine/security/nn_baseline_5fold.csv
+TianChi/baseLine/zhengqi/Untitled.ipynb
+kaggle/getStarted/mlTutorial/melb/melb_base.ipynb
