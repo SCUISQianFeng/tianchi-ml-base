@@ -15,7 +15,7 @@ WEIGHT_DECAY = 1e-4
 LEARNING_RATE = 1e-4
 NUM_EPOCHS = 1
 
-basic_tranforms = A.Compose(
+basic_transforms = A.Compose(
     A.Resize(height=448, width=448),
     A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0),
     ToTensorV2(),
