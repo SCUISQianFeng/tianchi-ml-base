@@ -3,57 +3,59 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functisonal as F
+import torch.nn.functional as F
 from efficientnet_pytorch import EfficientNet
 from torch import optim
 from torch.cuda.amp import GradScaler
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from . import config
-from .dataset import CatDog
-from .utils import check_accuracy, load_checkpoint, save_checkpoint
+import config
+from dataset import CatDog
+from utils import check_accuracy, load_checkpoint, save_checkpoint
 
 
-def save_feature_vectors(model: nn.Module, loader, output_size=(1, 1), file='trainb7'):
+def save_feature_vectors(model, loader, output_size=(1, 1), file="trainb7"):
     model.eval()
     images, labels = [], []
+
     for idx, (x, y) in enumerate(tqdm(loader)):
-        x = x.to(device=config.DEVICE)
+        x = x.to(config.DEVICE)
 
         with torch.no_grad():
             features = model.extract_features(x)
-            features = F.adaptive_avg_pool2d(input=features, output_size=output_size)
+            features = F.adaptive_avg_pool2d(features, output_size=output_size)
         images.append(features.reshape(x.shape[0], -1).detach().cpu().numpy())
         labels.append(y.numpy())
+
     np.save(f"data_features/X_{file}.npy", np.concatenate(images, axis=0))
     np.save(f"data_features/y_{file}.npy", np.concatenate(labels, axis=0))
     model.train()
 
 
-def train_one_epoch(loader: DataLoader, model: nn.Module, loss_fn: nn.CrossEntropyLoss, optimizer: optim.Adam,
-                    scaler: GradScaler):
+def train_one_epoch(loader, model, loss_fn, optimizer, scaler):
     loop = tqdm(loader)
 
     for batch_idx, (data, targets) in enumerate(loop):
-        data = data.to(device=config.DEVICE)
-        targets = targets.to(device=config.DEVICE).unsqueeze(1).float()
+        data = data.to(config.DEVICE)
+        targets = targets.to(config.DEVICE).unsqueeze(1).float()
 
         with torch.cuda.amp.autocast():
             scores = model(data)
             loss = loss_fn(scores, targets)
+
         optimizer.zero_grad()
         scaler.scale(loss).backward()
-        scaler.update(optimizer)
-        scaler.step()
+        scaler.step(optimizer)
+        scaler.update()
         loop.set_postfix(loss=loss.item())
 
 
 def main():
     model = EfficientNet.from_pretrained("efficientnet-b7")
     model._fc = nn.Linear(2560, 1)
-    train_dataset = CatDog(root="data/train/", transform=config.basic_transform)
-    test_dataset = CatDog(root="data/test/", transform=config.basic_transform)
+    train_dataset = CatDog(root=r"E:\DataSet\DataSet\kaggle\get_started\CatAndDog\train\\", transform=config.basic_transforms)
+    test_dataset = CatDog(root=r"E:\DataSet\DataSet\kaggle\get_started\CatAndDog\test\\", transform=config.basic_transforms)
     train_loader = DataLoader(
         train_dataset,
         shuffle=True,
