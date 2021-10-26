@@ -5,6 +5,9 @@ import sys
 import albumentations as A
 import torch
 from albumentations.pytorch import ToTensorV2
+import sys
+
+sys.path.append('..')
 
 sys.path.append('..')
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
