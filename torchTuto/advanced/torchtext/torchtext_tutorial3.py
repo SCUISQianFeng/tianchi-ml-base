@@ -1,6 +1,6 @@
 import spacy
 import pandas as pd
-from torchtext.legacy.data import Field, BucketIterator, TabularDataset
+from torchtext.data import Field, BucketIterator, TabularDataset
 from sklearn.model_selection import train_test_split
 
 ### Load data from two text files where each row is a sentence ###
